@@ -37,12 +37,12 @@ export function ServerPanel({ server, onShowSql }: Props) {
 
       <ActionsSection server={server} />
       <CpuSection ref={cpuRef} server={server} onShowSql={onShowSql} />
-      <RamSection ref={ramRef} server={server} onShowSql={onShowSql} />
-      <DatabasesSection ref={dbSizesRef} server={server} onShowSql={onShowSql} />
       <DiskSection ref={diskRef} server={server} onShowSql={onShowSql} />
+      <DatabasesSection ref={dbSizesRef} server={server} onShowSql={onShowSql} />
       <AvailabilityGroupsSection ref={agRef} server={server} onShowSql={onShowSql} />
-      <ServicesSection ref={svcRef} server={server} onShowSql={onShowSql} />
+      <RamSection ref={ramRef} server={server} onShowSql={onShowSql} />
       <ConfigSection ref={cfgRef} server={server} onShowSql={onShowSql} />
+      <ServicesSection ref={svcRef} server={server} onShowSql={onShowSql} />
     </div>
   );
 }
@@ -136,6 +136,57 @@ function ActionsSection({ server }: { server: string }) {
   );
 }
 
+/* ==== Disks Section ==== */
+const DiskSection = forwardRef<CollapsiblePanelRef, SectionProps>(function DiskSection({ server, onShowSql }, ref) {
+  const [disks, setDisks] = useState<VolumeSpaceInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const panelRef = useRef<CollapsiblePanelRef>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setDisks(await bridge.getVolumes(server));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [server]);
+
+  useImperativeHandle(ref, () => ({
+    refresh() { panelRef.current?.refresh(); },
+    isCollapsed() { return panelRef.current?.isCollapsed() ?? false; },
+  }), []);
+
+  return (
+    <CollapsiblePanel ref={panelRef} storageKey={`server:disks:${server}`} title="Disks" sqlPrefix="volume" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
+      <div className="disk-bars">
+        {disks.map((d) => {
+          const pct = d.totalMB > 0 ? Math.round((d.usedMB / d.totalMB) * 100) : 0;
+          const color = pct > 90 ? "var(--danger)" : pct > 75 ? "#f0ad4e" : "var(--accent)";
+          return (
+            <div key={d.volumeMountPoint} className="disk-bar-row">
+              <div className="disk-bar-label">
+                <span>{d.volumeMountPoint}</span>
+                {d.volumeName && <span style={{ color: "var(--fg-dim)" }}> ({d.volumeName})</span>}
+                <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
+                  {(d.usedMB / 1024).toFixed(1)} / {(d.totalMB / 1024).toFixed(1)} GB ({pct}%)
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color }} />
+              </div>
+            </div>
+          );
+        })}
+        {disks.length === 0 && <div className="loading">No volume info.</div>}
+      </div>
+    </CollapsiblePanel>
+  );
+});
+
 /* ==== CPU Section ==== */
 const CpuSection = forwardRef<CollapsiblePanelRef, SectionProps>(function CpuSection({ server, onShowSql }, ref) {
   const [info, setInfo] = useState<ServerInfo | null>(null);
@@ -200,76 +251,6 @@ const CpuSection = forwardRef<CollapsiblePanelRef, SectionProps>(function CpuSec
               <Area type="monotone" dataKey="otherCpu" stackId="1" stroke="#f0ad4e" fill="#f0ad4e" name="Other CPU %" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
-      )}
-    </CollapsiblePanel>
-  );
-});
-
-/* ==== RAM Section ==== */
-const RamSection = forwardRef<CollapsiblePanelRef, SectionProps>(function RamSection({ server, onShowSql }, ref) {
-  const [ram, setRam] = useState<RamOverview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const panelRef = useRef<CollapsiblePanelRef>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setRam(await bridge.getRamOverview(server));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [server]);
-
-  useImperativeHandle(ref, () => ({
-    refresh() { panelRef.current?.refresh(); },
-    isCollapsed() { return panelRef.current?.isCollapsed() ?? false; },
-  }), []);
-
-  return (
-    <CollapsiblePanel ref={panelRef} storageKey={`server:ram:${server}`} title="RAM" sqlPrefix="ram" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
-      {ram && (
-        <div className="server-metrics">
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.physicalMemoryGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">Physical RAM</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.sqlUsedMemoryGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">SQL Used</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.sqlTargetMemoryGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">SQL Target</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.sqlMinMemoryGB.toFixed(1)} / {ram.sqlMaxMemoryGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">Min / Max Server Memory</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.committedMemoryGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">Committed</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.committedTargetGB.toFixed(1)} GB</div>
-            <div className="server-metric-label">Committed Target</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.pageLifeExpectancy}</div>
-            <div className="server-metric-label">PLE (sec)</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.bufferCacheHitRatio.toFixed(1)}%</div>
-            <div className="server-metric-label">Buffer Cache Hit</div>
-          </div>
-          <div className="server-metric">
-            <div className="server-metric-value">{ram.memoryGrantsPending}</div>
-            <div className="server-metric-label">Grants Pending</div>
-          </div>
         </div>
       )}
     </CollapsiblePanel>
@@ -370,6 +351,76 @@ const DatabasesSection = forwardRef<CollapsiblePanelRef, SectionProps>(function 
   );
 });
 
+/* ==== RAM Section ==== */
+const RamSection = forwardRef<CollapsiblePanelRef, SectionProps>(function RamSection({ server, onShowSql }, ref) {
+  const [ram, setRam] = useState<RamOverview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const panelRef = useRef<CollapsiblePanelRef>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setRam(await bridge.getRamOverview(server));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [server]);
+
+  useImperativeHandle(ref, () => ({
+    refresh() { panelRef.current?.refresh(); },
+    isCollapsed() { return panelRef.current?.isCollapsed() ?? false; },
+  }), []);
+
+  return (
+    <CollapsiblePanel ref={panelRef} storageKey={`server:ram:${server}`} title="RAM" sqlPrefix="ram" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
+      {ram && (
+        <div className="server-metrics">
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.physicalMemoryGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">Physical RAM</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.sqlUsedMemoryGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">SQL Used</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.sqlTargetMemoryGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">SQL Target</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.sqlMinMemoryGB.toFixed(1)} / {ram.sqlMaxMemoryGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">Min / Max Server Memory</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.committedMemoryGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">Committed</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.committedTargetGB.toFixed(1)} GB</div>
+            <div className="server-metric-label">Committed Target</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.pageLifeExpectancy}</div>
+            <div className="server-metric-label">PLE (sec)</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.bufferCacheHitRatio.toFixed(1)}%</div>
+            <div className="server-metric-label">Buffer Cache Hit</div>
+          </div>
+          <div className="server-metric">
+            <div className="server-metric-value">{ram.memoryGrantsPending}</div>
+            <div className="server-metric-label">Grants Pending</div>
+          </div>
+        </div>
+      )}
+    </CollapsiblePanel>
+  );
+});
+
 /* ---- DB color helpers ---- */
 const SYSTEM_DBS = new Set(["master", "tempdb", "model", "msdb"]);
 
@@ -465,57 +516,6 @@ function DbCardList({ dbs, expanded, onToggle, fmtMB, loading }: {
     </div>
   );
 }
-
-/* ==== Disks Section ==== */
-const DiskSection = forwardRef<CollapsiblePanelRef, SectionProps>(function DiskSection({ server, onShowSql }, ref) {
-  const [disks, setDisks] = useState<VolumeSpaceInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const panelRef = useRef<CollapsiblePanelRef>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setDisks(await bridge.getVolumes(server));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [server]);
-
-  useImperativeHandle(ref, () => ({
-    refresh() { panelRef.current?.refresh(); },
-    isCollapsed() { return panelRef.current?.isCollapsed() ?? false; },
-  }), []);
-
-  return (
-    <CollapsiblePanel ref={panelRef} storageKey={`server:disks:${server}`} title="Disks" sqlPrefix="volume" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
-      <div className="disk-bars">
-        {disks.map((d) => {
-          const pct = d.totalMB > 0 ? Math.round((d.usedMB / d.totalMB) * 100) : 0;
-          const color = pct > 90 ? "var(--danger)" : pct > 75 ? "#f0ad4e" : "var(--accent)";
-          return (
-            <div key={d.volumeMountPoint} className="disk-bar-row">
-              <div className="disk-bar-label">
-                <span>{d.volumeMountPoint}</span>
-                {d.volumeName && <span style={{ color: "var(--fg-dim)" }}> ({d.volumeName})</span>}
-                <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
-                  {(d.usedMB / 1024).toFixed(1)} / {(d.totalMB / 1024).toFixed(1)} GB ({pct}%)
-                </span>
-              </div>
-              <div className="progress-bar">
-                <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color }} />
-              </div>
-            </div>
-          );
-        })}
-        {disks.length === 0 && <div className="loading">No volume info.</div>}
-      </div>
-    </CollapsiblePanel>
-  );
-});
 
 /* ==== Availability Groups Section ==== */
 const AvailabilityGroupsSection = forwardRef<CollapsiblePanelRef, SectionProps>(function AvailabilityGroupsSection({ server, onShowSql }, ref) {
