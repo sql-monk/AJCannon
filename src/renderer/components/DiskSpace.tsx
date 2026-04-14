@@ -316,7 +316,7 @@ export function DiskSpace({ ctx }: Props) {
                         <td>{o.tableName}</td>
                         <td>{o.totalSpaceMB}</td>
                         <td>{o.usedSpaceMB}</td>
-                        <td>{o.rowCount.toLocaleString()}</td>
+                        <td>{o.rowsCount.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

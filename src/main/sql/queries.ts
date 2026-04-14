@@ -28,6 +28,7 @@ import type {
   ExpensiveQuery,
   AgentJob,
   AgentJobStep,
+  AgentJobSchedule,
   RunningJob,
   ServerInfo,
   BufferPoolEntry,
@@ -41,6 +42,13 @@ import type {
   DatabaseDetailInfo,
   ExtendedProperty,
   DdlHistoryEvent,
+  TableDetailInfo,
+  TableColumnDetail,
+  TableTriggerInfo,
+  TablePermissionInfo,
+  SqlModuleInfo,
+  SqlModuleParameter,
+  SqlModuleDependency,
 } from "../../shared/types";
 
 /* ------------------------------------------------------------------ */
@@ -710,6 +718,15 @@ export async function getRunningJobs(server: string): Promise<RunningJob[]> {
   return result.recordset;
 }
 
+export async function getJobSchedules(
+  server: string,
+  jobId: string,
+): Promise<AgentJobSchedule[]> {
+  const sql = loadSql("job-schedules").replace("{{jobId}}", escapeSqlString(jobId));
+  const result = await queryServer<AgentJobSchedule>(server, sql);
+  return result.recordset;
+}
+
 export async function stopAgentJob(
   server: string,
   jobId: string,
@@ -900,6 +917,133 @@ export async function getDatabaseDdlHistory(
     const sql = loadSql("database-ddl-history")
       .replace("{{dbName}}", escapeSqlString(dbName));
     const result = await queryServer<DdlHistoryEvent>(server, sql);
+    return result.recordset;
+  } catch {
+    return [];
+  }
+}
+
+/* ================================================================== */
+/*  Table Panel                                                       */
+/* ================================================================== */
+
+export async function getTableDetail(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  tableName: string,
+): Promise<TableDetailInfo> {
+  const sql = loadSql("table-detail")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{tableName}}", escapeSqlString(tableName));
+  const result = await queryDb<TableDetailInfo>(server, dbName, sql);
+  return result.recordset[0];
+}
+
+export async function getTableColumnsDetail(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  tableName: string,
+): Promise<TableColumnDetail[]> {
+  const sql = loadSql("table-columns-detail")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{tableName}}", escapeSqlString(tableName));
+  const result = await queryDb<TableColumnDetail>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getTableTriggers(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  tableName: string,
+): Promise<TableTriggerInfo[]> {
+  const sql = loadSql("table-triggers-detail")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{tableName}}", escapeSqlString(tableName));
+  const result = await queryDb<TableTriggerInfo>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getTablePermissions(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  tableName: string,
+): Promise<TablePermissionInfo[]> {
+  const sql = loadSql("table-permissions")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{tableName}}", escapeSqlString(tableName));
+  const result = await queryDb<TablePermissionInfo>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getTableDataSample(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  tableName: string,
+): Promise<Record<string, unknown>[]> {
+  const sql = `SELECT TOP 10 * FROM ${bracketName(schemaName)}.${bracketName(tableName)};`;
+  const result = await queryDb<Record<string, unknown>>(server, dbName, sql);
+  return result.recordset;
+}
+
+/* ================================================================== */
+/*  SQL Module Panel                                                  */
+/* ================================================================== */
+
+export async function getModuleInfo(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  objectName: string,
+): Promise<SqlModuleInfo> {
+  const sql = loadSql("module-info")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{objectName}}", escapeSqlString(objectName));
+  const result = await queryDb<SqlModuleInfo>(server, dbName, sql);
+  return result.recordset[0];
+}
+
+export async function getModuleDefinition(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  objectName: string,
+): Promise<string> {
+  const sql = loadSql("module-definition")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{objectName}}", escapeSqlString(objectName));
+  const result = await queryDb<{ definition: string }>(server, dbName, sql);
+  return result.recordset[0]?.definition ?? "";
+}
+
+export async function getModuleParameters(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  objectName: string,
+): Promise<SqlModuleParameter[]> {
+  const sql = loadSql("module-parameters")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{objectName}}", escapeSqlString(objectName));
+  const result = await queryDb<SqlModuleParameter>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getModuleDependencies(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  objectName: string,
+): Promise<SqlModuleDependency[]> {
+  try {
+    const sql = loadSql("module-dependencies")
+      .replace(/\{\{schemaName\}\}/g, escapeSqlString(schemaName))
+      .replace(/\{\{objectName\}\}/g, escapeSqlString(objectName));
+    const result = await queryDb<SqlModuleDependency>(server, dbName, sql);
     return result.recordset;
   } catch {
     return [];

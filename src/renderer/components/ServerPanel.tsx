@@ -340,7 +340,7 @@ const DiskSection = forwardRef<CollapsiblePanelRef, SectionProps>(function DiskS
                                                 <td>{o.tableName}</td>
                                                 <td className="num">{o.totalSpaceMB}</td>
                                                 <td className="num">{o.usedSpaceMB}</td>
-                                                <td className="num">{o.rowCount.toLocaleString()}</td>
+                                                <td className="num">{o.rowsCount.toLocaleString()}</td>
                                               </tr>
                                             ))}
                                           </tbody>

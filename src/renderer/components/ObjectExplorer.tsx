@@ -4,13 +4,39 @@ import type { TreeNode, TreeNodeType, TreeContext } from "../../shared/types";
 
 interface Props {
   servers: string[];
-  filter: string;
   onContextChange: (ctx: TreeContext) => void;
   onServerRemoved: (server: string) => void;
   onRootSelected: () => void;
 }
 
 const SYSTEM_DB_NAMES = new Set(["master", "msdb", "tempdb", "model", "distribution", "DWQueue", "DWConfiguration", "DWDiagnostics"]);
+
+/** Folder labels that should have a filter button */
+const FILTERABLE_FOLDERS = new Set([
+  "Tables", "Views", "Stored Procedures", "Scalar Functions", "Table Valued Functions",
+  "Filegroups", "Users", "Roles", "Schemas",
+]);
+
+/* --- Spinner icon for loading state --- */
+function SpinnerIcon() {
+  return <span className="tree-spinner">⟳</span>;
+}
+
+/* --- Filter icon button --- */
+function FilterButton({ active, onClick }: { active: boolean; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      className="tree-btn tree-filter-btn"
+      onClick={onClick}
+      title={active ? "Clear filter" : "Filter"}
+      style={{ color: active ? "#e5c07b" : "var(--fg-dim)" }}
+    >
+      <svg viewBox="0 0 16 16" width="12" height="12">
+        <polygon points="1,1 15,1 10,7 10,13 6,15 6,7" fill={active ? "#e5c07b" : "none"} stroke={active ? "#e5c07b" : "currentColor"} strokeWidth="1.2" />
+      </svg>
+    </button>
+  );
+}
 
 /** Color for a database tree label */
 function dbColor(name: string, state: string, isSystem: boolean, agName?: string | null): string | undefined {
@@ -116,15 +142,13 @@ function dbIcon(state: string, isSystem: boolean): JSX.Element {
   );
 }
 
-export function ObjectExplorer({ servers, filter, onContextChange, onServerRemoved, onRootSelected }: Props) {
-  const lc = filter.toLowerCase();
-
+export function ObjectExplorer({ servers, onContextChange, onServerRemoved, onRootSelected }: Props) {
   return (
     <div className="tree-root">
       <div
-        className="tree-node-label"
+        className="tree-node-label tree-clickable"
         onClick={onRootSelected}
-        style={{ fontWeight: 700, marginBottom: 4, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+        style={{ fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}
       >
         <span className="tree-icon">{ICO.folder}</span> Dashboard
       </div>
@@ -136,23 +160,55 @@ export function ObjectExplorer({ servers, filter, onContextChange, onServerRemov
           <ServerNode
             key={server}
             server={server}
-            filter={lc}
             onContextChange={onContextChange}
             onRemove={() => onServerRemoved(server)}
           />
         ))}
       </div>
+      <ToolsBranch />
     </div>
   );
 }
 
-/* ---------- Leaf with icon ---------- */
+/* ---------- Leaf with icon (opens a panel) ---------- */
 function IconLeaf({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <div className="tree-node">
-      <div className="tree-node-label" onClick={onClick}>
+      <div className="tree-node-label tree-clickable" onClick={onClick}>
         <span className="tree-icon">{icon}</span> {label}
       </div>
+    </div>
+  );
+}
+
+/* ---------- Tools branch (root-level) ---------- */
+function ToolsBranch() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="tree-node" style={{ marginTop: 8 }}>
+      <div className="tree-node-label" onClick={() => setExpanded(!expanded)}>
+        <span className="tree-toggle">{expanded ? "▾" : "▸"}</span>
+        <span className="tree-icon">🧰</span> Tools
+      </div>
+      {expanded && (
+        <div className="tree-children">
+          <div className="tree-node">
+            <div className="tree-node-label">
+              <span className="tree-icon">📦</span> Common
+            </div>
+          </div>
+          <div className="tree-node">
+            <div className="tree-node-label">
+              <span className="tree-icon">🤖</span> AI
+            </div>
+          </div>
+          <div className="tree-node">
+            <div className="tree-node-label">
+              <span className="tree-icon">📜</span> Scripting
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -160,12 +216,10 @@ function IconLeaf({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 /* ---------- Server node ---------- */
 function ServerNode({
   server,
-  filter,
   onContextChange,
   onRemove,
 }: {
   server: string;
-  filter: string;
   onContextChange: (ctx: TreeContext) => void;
   onRemove: () => void;
 }) {
@@ -188,26 +242,20 @@ function ServerNode({
     onRemove();
   }
 
-  const isFiltering = filter.length > 0;
-  const serverMatches = server.toLowerCase().includes(filter);
-  if (isFiltering && !serverMatches) return null;
-
-  const show = expanded || isFiltering;
-
   return (
     <div className="tree-node">
-      <div className="tree-node-label tree-label-flex" onClick={toggle}>
-        <span>{show ? "▾" : "▸"} <span className="tree-icon">{ICO.server}</span> {server}</span>
+      <div className="tree-node-label tree-label-flex tree-clickable" onClick={toggle}>
+        <span>{expanded ? "▾" : "▸"} <span className="tree-icon">{ICO.server}</span> {server}</span>
         <span className="tree-node-actions">
           <button className="tree-btn" onClick={handleRefresh} title="Refresh">↻</button>
           <button className="tree-btn" onClick={handleDisconnect} title="Disconnect">✕</button>
         </span>
       </div>
-      {show && (
+      {expanded && (
         <div className="tree-children" key={rev}>
           <IconLeaf icon={ICO.activity} label="Activity" onClick={() => onContextChange({ server, view: "activity" })} />
           <IconLeaf icon={ICO.checklist} label="Always On" onClick={() => onContextChange({ server, view: "alwayson" })} />
-          <DatabasesBranch server={server} filter={filter} onContextChange={onContextChange} />
+          <DatabasesBranch server={server} onContextChange={onContextChange} />
           <IconLeaf icon={ICO.agent} label="Agent" onClick={() => onContextChange({ server, view: "agent" })} />
           <IconLeaf icon={ICO.security} label="Security" onClick={() => onContextChange({ server, view: "security" })} />
           <IconLeaf icon={ICO.events} label="Extended Events" onClick={() => onContextChange({ server, view: "extendedevents" })} />
@@ -220,16 +268,16 @@ function ServerNode({
 /* ---------- Databases branch (lazy, splits system / user) ---------- */
 function DatabasesBranch({
   server,
-  filter,
   onContextChange,
 }: {
   server: string;
-  filter: string;
   onContextChange: (ctx: TreeContext) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [databases, setDatabases] = useState<TreeNode[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterText, setFilterText] = useState("");
 
   const loadDatabases = useCallback(async () => {
     setLoading(true);
@@ -242,33 +290,51 @@ function DatabasesBranch({
     onContextChange({ server, view: "databases" });
   }
 
-  const isFiltering = filter.length > 0;
+  function handleFilterClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (filterText) { setFilterText(""); setFilterOpen(false); }
+    else setFilterOpen((v) => !v);
+  }
+
+  const lc = filterText.toLowerCase();
   const systemDbs = databases?.filter((db) => SYSTEM_DB_NAMES.has(db.label)) ?? [];
   const userDbs = databases?.filter((db) => !SYSTEM_DB_NAMES.has(db.label)) ?? [];
-
-  const filteredSystem = systemDbs.filter((db) => db.label.toLowerCase().includes(filter));
-  const filteredUser = userDbs.filter((db) => db.label.toLowerCase().includes(filter));
+  const filteredSystem = lc ? systemDbs.filter((db) => db.label.toLowerCase().includes(lc)) : systemDbs;
+  const filteredUser = lc ? userDbs.filter((db) => db.label.toLowerCase().includes(lc)) : userDbs;
 
   return (
     <div className="tree-node">
-      <div className="tree-node-label" onClick={toggle}>
-        {expanded || isFiltering ? "▾" : "▸"} <span className="tree-icon">{ICO.folder}</span> Databases
-        {databases && <span style={{ color: "var(--fg-dim)", marginLeft: 4 }}>({databases.length})</span>}
+      <div className="tree-node-label tree-label-flex tree-clickable" onClick={toggle}>
+        <span>
+          {loading ? <SpinnerIcon /> : (expanded ? "▾" : "▸")}{" "}
+          <span className="tree-icon">{ICO.folder}</span> Databases
+          {databases && <span style={{ color: "var(--fg-dim)", marginLeft: 4 }}>({databases.length})</span>}
+        </span>
+        <span className="tree-node-actions">
+          <FilterButton active={!!filterText} onClick={handleFilterClick} />
+        </span>
       </div>
-      {(expanded || isFiltering) && loading && <div className="loading" style={{ paddingLeft: 20 }}>Loading...</div>}
-      {(expanded || isFiltering) && databases && (
-        <div className="tree-children">
-          {/* System Databases folder */}
-          <SystemDbsFolder
-            databases={isFiltering ? filteredSystem : systemDbs}
-            server={server}
-            filter={filter}
-            onContextChange={onContextChange}
-            forceOpen={isFiltering}
+      {filterOpen && (
+        <div className="tree-filter-input" onClick={(e) => e.stopPropagation()}>
+          <input
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder="Filter databases..."
+            autoFocus
+            onKeyDown={(e) => { if (e.key === "Escape") { setFilterText(""); setFilterOpen(false); } }}
           />
-          {/* User databases — flat list */}
-          {(isFiltering ? filteredUser : userDbs).map((db) => (
-            <DatabaseNode key={db.id} node={db} server={server} filter={filter} onContextChange={onContextChange} />
+        </div>
+      )}
+      {expanded && loading && <div className="loading" style={{ paddingLeft: 20 }}>Loading...</div>}
+      {expanded && databases && (
+        <div className="tree-children">
+          <SystemDbsFolder
+            databases={filteredSystem}
+            server={server}
+            onContextChange={onContextChange}
+          />
+          {filteredUser.map((db) => (
+            <DatabaseNode key={db.id} node={db} server={server} onContextChange={onContextChange} />
           ))}
         </div>
       )}
@@ -280,31 +346,25 @@ function DatabasesBranch({
 function SystemDbsFolder({
   databases,
   server,
-  filter,
   onContextChange,
-  forceOpen,
 }: {
   databases: TreeNode[];
   server: string;
-  filter: string;
   onContextChange: (ctx: TreeContext) => void;
-  forceOpen: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  if (databases.length === 0 && !forceOpen) return null;
-
-  const show = expanded || forceOpen;
+  if (databases.length === 0) return null;
 
   return (
     <div className="tree-node">
       <div className="tree-node-label" onClick={() => setExpanded((e) => !e)}>
-        {show ? "▾" : "▸"} <span className="tree-icon">{ICO.folder}</span> System Databases
+        {expanded ? "▾" : "▸"} <span className="tree-icon">{ICO.folder}</span> System Databases
         <span style={{ color: "var(--fg-dim)", marginLeft: 4 }}>({databases.length})</span>
       </div>
-      {show && (
+      {expanded && (
         <div className="tree-children">
           {databases.map((db) => (
-            <DatabaseNode key={db.id} node={db} server={server} filter={filter} onContextChange={onContextChange} />
+            <DatabaseNode key={db.id} node={db} server={server} onContextChange={onContextChange} />
           ))}
         </div>
       )}
@@ -316,16 +376,15 @@ function SystemDbsFolder({
 function DatabaseNode({
   node,
   server,
-  filter,
   onContextChange,
 }: {
   node: TreeNode;
   server: string;
-  filter: string;
   onContextChange: (ctx: TreeContext) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<TreeNode[] | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const state = String(node.meta?.state ?? "ONLINE");
   const isSystem = SYSTEM_DB_NAMES.has(node.label);
@@ -335,8 +394,13 @@ function DatabaseNode({
 
   async function toggle() {
     if (!expanded && children === null) {
-      const ch = await bridge.getDatabaseChildren(server, node.label);
-      setChildren(ch);
+      setLoading(true);
+      try {
+        const ch = await bridge.getDatabaseChildren(server, node.label);
+        setChildren(ch);
+      } finally {
+        setLoading(false);
+      }
     }
     setExpanded((e) => !e);
     onContextChange({ server, view: "databases", database: node.label });
@@ -344,9 +408,9 @@ function DatabaseNode({
 
   return (
     <div className="tree-node">
-      <div className="tree-node-label tree-label-flex" onClick={toggle}>
+      <div className="tree-node-label tree-label-flex tree-clickable" onClick={toggle}>
         <span>
-          {expanded ? "▾" : "▸"}{" "}
+          {loading ? <SpinnerIcon /> : (expanded ? "▾" : "▸")}{" "}
           <span className="tree-icon">{dbIcon(state, isSystem)}</span>{" "}
           <span style={color ? { color } : undefined}>{node.label}</span>
           {agSyncState && (
@@ -363,7 +427,7 @@ function DatabaseNode({
       {expanded && (
         <div className="tree-children">
           {children && children.map((folder) => (
-            <FolderNode key={folder.id} node={folder} server={server} dbName={node.label} filter={filter} />
+            <FolderNode key={folder.id} node={folder} server={server} dbName={node.label} onContextChange={onContextChange} />
           ))}
         </div>
       )}
@@ -376,33 +440,59 @@ function FolderNode({
   node,
   server,
   dbName,
-  filter,
+  onContextChange,
 }: {
   node: TreeNode;
   server: string;
   dbName: string;
-  filter: string;
+  onContextChange: (ctx: TreeContext) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterText, setFilterText] = useState("");
+  const isFilterable = FILTERABLE_FOLDERS.has(node.label);
 
-  const isFiltering = filter.length > 0;
-  const filtered = node.children?.filter((c) => c.label.toLowerCase().includes(filter));
-  if (isFiltering && filtered && filtered.length === 0) return null;
+  function handleFilterClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (filterText) { setFilterText(""); setFilterOpen(false); }
+    else setFilterOpen((v) => !v);
+  }
 
-  const displayChildren = isFiltering ? filtered : node.children;
+  const lc = filterText.toLowerCase();
+  const displayChildren = lc
+    ? node.children?.filter((c) => c.label.toLowerCase().includes(lc))
+    : node.children;
 
   return (
     <div className="tree-node">
-      <div className="tree-node-label" onClick={() => setExpanded((e) => !e)}>
-        {expanded || isFiltering ? "▾" : "▸"} {node.label}
-        {displayChildren && (
-          <span style={{ color: "var(--fg-dim)", marginLeft: 4 }}>({displayChildren.length})</span>
+      <div className="tree-node-label tree-label-flex" onClick={() => setExpanded((e) => !e)}>
+        <span>
+          {expanded ? "▾" : "▸"} {node.label}
+          {displayChildren && (
+            <span style={{ color: "var(--fg-dim)", marginLeft: 4 }}>({displayChildren.length})</span>
+          )}
+        </span>
+        {isFilterable && (
+          <span className="tree-node-actions">
+            <FilterButton active={!!filterText} onClick={handleFilterClick} />
+          </span>
         )}
       </div>
-      {(expanded || isFiltering) && displayChildren && (
+      {filterOpen && (
+        <div className="tree-filter-input" onClick={(e) => e.stopPropagation()}>
+          <input
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder={`Filter ${node.label.toLowerCase()}...`}
+            autoFocus
+            onKeyDown={(e) => { if (e.key === "Escape") { setFilterText(""); setFilterOpen(false); } }}
+          />
+        </div>
+      )}
+      {expanded && displayChildren && (
         <div className="tree-children">
           {displayChildren.map((child) => (
-            <ObjectNode key={child.id} node={child} server={server} dbName={dbName} filter={filter} />
+            <ObjectNode key={child.id} node={child} server={server} dbName={dbName} onContextChange={onContextChange} />
           ))}
         </div>
       )}
@@ -420,36 +510,62 @@ function ObjectNode({
   node,
   server,
   dbName,
-  filter,
+  onContextChange,
 }: {
   node: TreeNode;
   server: string;
   dbName: string;
-  filter: string;
+  onContextChange: (ctx: TreeContext) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<TreeNode[] | null>(null);
+  const [loading, setLoading] = useState(false);
   const isTable = node.type === "table";
+  const isView = node.type === "view";
   const isFilegroup = node.type === "filegroup";
+  const isProcedure = node.type === "procedure";
+  const isFunction = node.type === "function";
+  const isTrigger = node.type === "trigger";
+  const opensPanel = isTable || isView || isProcedure || isFunction || isTrigger;
 
   async function toggle() {
     if (isTable && !expanded && children === null) {
-      const [schema, table] = node.label.split(".");
-      const [cols, idxs] = await Promise.all([
-        bridge.getTableColumns(server, dbName, schema, table),
-        bridge.getTableIndexes(server, dbName, schema, table),
-      ]);
-      setChildren([
-        { id: `${node.id}:cols`, label: "Columns", type: "folder", children: cols },
-        { id: `${node.id}:idxs`, label: "Indexes", type: "folder", children: idxs },
-      ]);
+      setLoading(true);
+      try {
+        const [schema, table] = node.label.split(".");
+        const [cols, idxs] = await Promise.all([
+          bridge.getTableColumns(server, dbName, schema, table),
+          bridge.getTableIndexes(server, dbName, schema, table),
+        ]);
+        setChildren([
+          { id: `${node.id}:cols`, label: "Columns", type: "folder", children: cols },
+          { id: `${node.id}:idxs`, label: "Indexes", type: "folder", children: idxs },
+        ]);
+      } finally {
+        setLoading(false);
+      }
     }
     if (isFilegroup && !expanded && children === null) {
-      const filegroupId = node.meta?.dataSpaceId as number;
-      const files = await bridge.getFilegroupFiles(server, dbName, filegroupId);
-      setChildren(files);
+      setLoading(true);
+      try {
+        const filegroupId = node.meta?.dataSpaceId as number;
+        const files = await bridge.getFilegroupFiles(server, dbName, filegroupId);
+        setChildren(files);
+      } finally {
+        setLoading(false);
+      }
     }
     setExpanded((e) => !e);
+
+    if (isTable || isView) {
+      const schema = (node.meta?.schema as string) ?? node.label.split(".")[0];
+      const objName = node.label.split(".").pop()!;
+      onContextChange({ server, view: "table", database: dbName, schema, objectName: objName });
+    }
+    if (isProcedure || isFunction || isTrigger) {
+      const parts = node.label.split(".");
+      onContextChange({ server, view: "sqlmodule", database: dbName, schema: parts[0], objectName: parts.pop()!, objectType: node.type });
+    }
   }
 
   const icon = NODE_ICONS[node.type] ?? "";
@@ -457,16 +573,26 @@ function ObjectNode({
   if (isTable || isFilegroup) {
     return (
       <div className="tree-node">
-        <div className="tree-node-label" onClick={toggle}>
-          {expanded ? "▾" : "▸"} {icon ? `${icon} ` : ""}{node.label}
+        <div className={`tree-node-label${opensPanel ? " tree-clickable" : ""}`} onClick={toggle}>
+          {loading ? <SpinnerIcon /> : (expanded ? "▾" : "▸")} {icon ? `${icon} ` : ""}{node.label}
         </div>
         {expanded && children && (
           <div className="tree-children">
             {children.map((sub) => (
-              <FolderNode key={sub.id} node={sub} server={server} dbName={dbName} filter={filter} />
+              <FolderNode key={sub.id} node={sub} server={server} dbName={dbName} onContextChange={onContextChange} />
             ))}
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (opensPanel) {
+    return (
+      <div className="tree-node">
+        <div className="tree-node-label tree-clickable" onClick={toggle}>
+          {icon ? `${icon} ` : ""}{node.label}
+        </div>
       </div>
     );
   }

@@ -24,12 +24,12 @@ export function logQuery(
   database: string | null,
   queryText: string,
   durationMs: number,
-  rowCount: number,
+  rowsCount: number,
   error?: string,
 ): void {
   const now = new Date().toISOString();
   const dbPart = database ? ` [${database}]` : "";
-  const status = error ? `ERROR: ${error}` : `OK ${rowCount} rows`;
+  const status = error ? `ERROR: ${error}` : `OK ${rowsCount} rows`;
   const sqlOneLine = queryText.replace(/\s+/g, " ").trim();
   const truncated = sqlOneLine.length > 2000 ? sqlOneLine.slice(0, 2000) + "…" : sqlOneLine;
   const line = `[${now}] ${server}${dbPart} (${durationMs}ms) ${status}\n  ${truncated}\n\n`;

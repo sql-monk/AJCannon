@@ -135,6 +135,10 @@ export function registerIpcHandlers(): void {
     return Q.getJobSteps(server, jobId);
   });
 
+  ipcMain.handle(IpcChannels.GET_JOB_SCHEDULES, async (_e, server: string, jobId: string) => {
+    return Q.getJobSchedules(server, jobId);
+  });
+
   ipcMain.handle(IpcChannels.GET_RUNNING_JOBS, async (_e, server: string) => {
     return Q.getRunningJobs(server);
   });
@@ -220,4 +224,42 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.OPEN_IN_EXPLORER, async (_e, filePath: string) => {
     shell.showItemInFolder(filePath);
   });
+
+  // ---- Table Panel ----
+  ipcMain.handle(IpcChannels.GET_TABLE_DETAIL,
+    async (_e, server: string, db: string, schema: string, table: string) =>
+      Q.getTableDetail(server, db, schema, table));
+
+  ipcMain.handle(IpcChannels.GET_TABLE_COLUMNS_DETAIL,
+    async (_e, server: string, db: string, schema: string, table: string) =>
+      Q.getTableColumnsDetail(server, db, schema, table));
+
+  ipcMain.handle(IpcChannels.GET_TABLE_TRIGGERS,
+    async (_e, server: string, db: string, schema: string, table: string) =>
+      Q.getTableTriggers(server, db, schema, table));
+
+  ipcMain.handle(IpcChannels.GET_TABLE_PERMISSIONS,
+    async (_e, server: string, db: string, schema: string, table: string) =>
+      Q.getTablePermissions(server, db, schema, table));
+
+  ipcMain.handle(IpcChannels.GET_TABLE_DATA_SAMPLE,
+    async (_e, server: string, db: string, schema: string, table: string) =>
+      Q.getTableDataSample(server, db, schema, table));
+
+  // ---- SQL Module Panel ----
+  ipcMain.handle(IpcChannels.GET_MODULE_INFO,
+    async (_e, server: string, db: string, schema: string, objectName: string) =>
+      Q.getModuleInfo(server, db, schema, objectName));
+
+  ipcMain.handle(IpcChannels.GET_MODULE_DEFINITION,
+    async (_e, server: string, db: string, schema: string, objectName: string) =>
+      Q.getModuleDefinition(server, db, schema, objectName));
+
+  ipcMain.handle(IpcChannels.GET_MODULE_PARAMETERS,
+    async (_e, server: string, db: string, schema: string, objectName: string) =>
+      Q.getModuleParameters(server, db, schema, objectName));
+
+  ipcMain.handle(IpcChannels.GET_MODULE_DEPENDENCIES,
+    async (_e, server: string, db: string, schema: string, objectName: string) =>
+      Q.getModuleDependencies(server, db, schema, objectName));
 }

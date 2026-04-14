@@ -6,12 +6,22 @@ import { AgentPanel } from "./components/AgentPanel";
 import { ServerPanel } from "./components/ServerPanel";
 import { DatabasesPanel } from "./components/DatabasesPanel";
 import { DatabasePanel } from "./components/DatabasePanel";
+import { TablePanel } from "./components/TablePanel";
+import { SqlModulePanel } from "./components/SqlModulePanel";
 import { bridge } from "./bridge";
 import type { AppConfig, SqlQueryFile } from "./bridge";
 import type { TreeContext } from "../shared/types";
 import hljs from "highlight.js/lib/core";
 import sqlLang from "highlight.js/lib/languages/sql";
 import "highlight.js/styles/vs2015.css";
+
+interface Tab {
+  id: string;
+  title: string;
+  ctx: TreeContext;
+  rev: number;  // increment to force refresh
+}
+
 
 hljs.registerLanguage("sql", sqlLang);
 
@@ -49,8 +59,31 @@ export function App() {
   const [servers, setServers] = useState<string[]>([]);
   const [ctx, setCtx] = useState<TreeContext | null>(null);
   const [showDashboard, setShowDashboard] = useState(true);
-  const [filter, setFilter] = useState("");
   const [connectError, setConnectError] = useState("");
+
+  /* ---- Tab system ---- */
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+  function tabKey(c: TreeContext): string {
+    const parts = [c.server, c.view];
+    if (c.database) parts.push(c.database);
+    if (c.schema && c.objectName) parts.push(`${c.schema}.${c.objectName}`);
+    return parts.join("::");
+  }
+
+  function tabTitle(c: TreeContext): string {
+    const viewNames: Record<string, string> = {
+      overview: "Server", activity: "Activity", agent: "Agent", databases: "Databases",
+      security: "Security", server: "Server", configuration: "Configuration",
+      alwayson: "Always On", extendedevents: "Extended Events", table: "Table", sqlmodule: "Module",
+    };
+    let title = viewNames[c.view] ?? c.view;
+    if (c.objectName) title = `${c.schema ? c.schema + "." : ""}${c.objectName}`;
+    if (c.database && c.view === "databases") title = c.database;
+    const context = c.database ? `${c.server}/${c.database}` : c.server;
+    return `${title} — ${context}`;
+  }
 
   /* ---- Global error toast ---- */
   const [toast, setToast] = useState<{ msg: string; type: "error" | "success" } | null>(null);
@@ -220,6 +253,36 @@ export function App() {
   function handleContextChange(newCtx: TreeContext) {
     setCtx(newCtx);
     setShowDashboard(false);
+
+    const key = tabKey(newCtx);
+    setTabs((prev) => {
+      const existing = prev.find((t) => t.id === key);
+      if (existing) {
+        // Refresh existing tab
+        return prev.map((t) => t.id === key ? { ...t, ctx: newCtx, rev: t.rev + 1 } : t);
+      }
+      return [...prev, { id: key, title: tabTitle(newCtx), ctx: newCtx, rev: 0 }];
+    });
+    setActiveTabId(key);
+  }
+
+  function closeTab(id: string) {
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (activeTabId === id) {
+        if (next.length > 0) {
+          const idx = prev.findIndex((t) => t.id === id);
+          const newActive = next[Math.min(idx, next.length - 1)];
+          setActiveTabId(newActive.id);
+          setCtx(newActive.ctx);
+        } else {
+          setActiveTabId(null);
+          setCtx(null);
+          setShowDashboard(true);
+        }
+      }
+      return next;
+    });
   }
 
   function handleRootSelected() {
@@ -259,9 +322,7 @@ export function App() {
       case "agent":
         return <AgentPanel server={ctx.server} onShowSql={openQueriesModal} />;
       case "server":
-        return <ServerPanel server={ctx.server} onShowSql={openQueriesModal} />;
       case "configuration":
-        return <ServerPanel server={ctx.server} onShowSql={openQueriesModal} />;
       case "overview":
         return <ServerPanel server={ctx.server} onShowSql={openQueriesModal} />;
       case "databases":
@@ -269,6 +330,16 @@ export function App() {
           return <DatabasePanel server={ctx.server} database={ctx.database} />;
         }
         return <DatabasesPanel server={ctx.server} />;
+      case "table":
+        if (ctx.database && ctx.schema && ctx.objectName) {
+          return <TablePanel server={ctx.server} database={ctx.database} schema={ctx.schema} objectName={ctx.objectName} onShowSql={openQueriesModal} />;
+        }
+        return <div className="tab-content"><div className="loading">Select a table.</div></div>;
+      case "sqlmodule":
+        if (ctx.database && ctx.schema && ctx.objectName) {
+          return <SqlModulePanel server={ctx.server} database={ctx.database} schema={ctx.schema} objectName={ctx.objectName} objectType={ctx.objectType ?? "procedure"} onShowSql={openQueriesModal} />;
+        }
+        return <div className="tab-content"><div className="loading">Select a module.</div></div>;
       case "security":
         return (
           <div className="tab-content">
@@ -380,15 +451,9 @@ export function App() {
         )}
         {connectError && <div className="error-msg" style={{ padding: "0 8px", fontSize: 11 }}>{connectError}</div>}
 
-        {/* Filter */}
-        <div className="sidebar-filter">
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter tree..." style={{ width: "100%" }} />
-        </div>
-
         {/* Tree */}
         <ObjectExplorer
           servers={servers}
-          filter={filter}
           onContextChange={handleContextChange}
           onServerRemoved={handleServerRemoved}
           onRootSelected={handleRootSelected}
@@ -399,8 +464,31 @@ export function App() {
       <div className="splitter" onMouseDown={onMouseDown} />
 
       {/* ---- Main content ---- */}
-      <div className="main-content" key={ctx ? `${ctx.server}::${ctx.view}::${ctx.database ?? ""}` : "__dashboard__"}>
-        {renderContent()}
+      <div className="main-content">
+        {/* Tab bar */}
+        {tabs.length > 0 && (
+          <div className="content-tab-bar">
+            <div
+              className={`content-tab${showDashboard ? " active" : ""}`}
+              onClick={handleRootSelected}
+            >
+              Dashboard
+            </div>
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={`content-tab${activeTabId === tab.id && !showDashboard ? " active" : ""}`}
+                onClick={() => { setActiveTabId(tab.id); setCtx(tab.ctx); setShowDashboard(false); }}
+              >
+                <span className="content-tab-title">{tab.title}</span>
+                <button className="content-tab-close" onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="content-body" key={activeTabId && !showDashboard ? `${activeTabId}::${tabs.find(t => t.id === activeTabId)?.rev ?? 0}` : "__dashboard__"}>
+          {renderContent()}
+        </div>
       </div>
 
       {/* ---- Modal ---- */}

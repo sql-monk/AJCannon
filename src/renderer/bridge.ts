@@ -17,6 +17,7 @@ import type {
   ExpensiveQuery,
   AgentJob,
   AgentJobStep,
+  AgentJobSchedule,
   RunningJob,
   ServerInfo,
   BufferPoolEntry,
@@ -30,6 +31,13 @@ import type {
   DatabaseDetailInfo,
   ExtendedProperty,
   DdlHistoryEvent,
+  TableDetailInfo,
+  TableColumnDetail,
+  TableTriggerInfo,
+  TablePermissionInfo,
+  SqlModuleInfo,
+  SqlModuleParameter,
+  SqlModuleDependency,
 } from "../shared/types";
 
 /** SQL query file descriptor */
@@ -93,6 +101,7 @@ export interface SqlBridge {
   // Agent
   getAgentJobs(server: string): Promise<AgentJob[]>;
   getJobSteps(server: string, jobId: string): Promise<AgentJobStep[]>;
+  getJobSchedules(server: string, jobId: string): Promise<AgentJobSchedule[]>;
   getRunningJobs(server: string): Promise<RunningJob[]>;
   stopAgentJob(server: string, jobId: string): Promise<CmdResult>;
   toggleAgentJob(server: string, jobId: string, enable: boolean): Promise<CmdResult>;
@@ -123,6 +132,19 @@ export interface SqlBridge {
   getSqlQueries(): Promise<SqlQueryFile[]>;
   openInEditor(filePath: string): Promise<void>;
   openInExplorer(filePath: string): Promise<void>;
+
+  // Table Panel
+  getTableDetail(server: string, db: string, schema: string, table: string): Promise<TableDetailInfo>;
+  getTableColumnsDetail(server: string, db: string, schema: string, table: string): Promise<TableColumnDetail[]>;
+  getTableTriggers(server: string, db: string, schema: string, table: string): Promise<TableTriggerInfo[]>;
+  getTablePermissions(server: string, db: string, schema: string, table: string): Promise<TablePermissionInfo[]>;
+  getTableDataSample(server: string, db: string, schema: string, table: string): Promise<Record<string, unknown>[]>;
+
+  // SQL Module Panel
+  getModuleInfo(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleInfo>;
+  getModuleDefinition(server: string, db: string, schema: string, objectName: string): Promise<string>;
+  getModuleParameters(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleParameter[]>;
+  getModuleDependencies(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleDependency[]>;
 }
 
 declare global {

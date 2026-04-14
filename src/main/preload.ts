@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld("sqlBridge", {
   getAgentJobs:         (server: string) => ipcRenderer.invoke(IpcChannels.GET_AGENT_JOBS, server),
   getJobSteps:          (server: string, jobId: string) =>
                           ipcRenderer.invoke(IpcChannels.GET_JOB_STEPS, server, jobId),
+  getJobSchedules:      (server: string, jobId: string) =>
+                          ipcRenderer.invoke(IpcChannels.GET_JOB_SCHEDULES, server, jobId),
   getRunningJobs:       (server: string) => ipcRenderer.invoke(IpcChannels.GET_RUNNING_JOBS, server),
   stopAgentJob:         (server: string, jobId: string) =>
                           ipcRenderer.invoke(IpcChannels.STOP_AGENT_JOB, server, jobId),
@@ -89,4 +91,26 @@ contextBridge.exposeInMainWorld("sqlBridge", {
   getSqlQueries:         () => ipcRenderer.invoke(IpcChannels.GET_SQL_QUERIES),
   openInEditor:          (filePath: string) => ipcRenderer.invoke(IpcChannels.OPEN_IN_EDITOR, filePath),
   openInExplorer:        (filePath: string) => ipcRenderer.invoke(IpcChannels.OPEN_IN_EXPLORER, filePath),
+
+  // Table Panel
+  getTableDetail:        (server: string, db: string, schema: string, table: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_TABLE_DETAIL, server, db, schema, table),
+  getTableColumnsDetail: (server: string, db: string, schema: string, table: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_TABLE_COLUMNS_DETAIL, server, db, schema, table),
+  getTableTriggers:      (server: string, db: string, schema: string, table: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_TABLE_TRIGGERS, server, db, schema, table),
+  getTablePermissions:   (server: string, db: string, schema: string, table: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_TABLE_PERMISSIONS, server, db, schema, table),
+  getTableDataSample:    (server: string, db: string, schema: string, table: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_TABLE_DATA_SAMPLE, server, db, schema, table),
+
+  // SQL Module Panel
+  getModuleInfo:         (server: string, db: string, schema: string, objectName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_MODULE_INFO, server, db, schema, objectName),
+  getModuleDefinition:   (server: string, db: string, schema: string, objectName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_MODULE_DEFINITION, server, db, schema, objectName),
+  getModuleParameters:   (server: string, db: string, schema: string, objectName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_MODULE_PARAMETERS, server, db, schema, objectName),
+  getModuleDependencies: (server: string, db: string, schema: string, objectName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_MODULE_DEPENDENCIES, server, db, schema, objectName),
 });

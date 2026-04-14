@@ -78,7 +78,61 @@ input:focus, textarea:focus {
   min-width: 200px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+.content-body {
+  flex: 1;
   overflow: auto;
+}
+
+/* ---- Content tab bar ---- */
+.content-tab-bar {
+  display: flex;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.content-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--fg-dim);
+  border-right: 1px solid var(--border);
+  max-width: 250px;
+  user-select: none;
+}
+.content-tab:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--fg);
+}
+.content-tab.active {
+  background: var(--bg);
+  color: var(--fg);
+  border-bottom: 2px solid var(--accent);
+}
+.content-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.content-tab-close {
+  font-size: 10px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 3px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.content-tab-close:hover {
+  background: var(--danger);
+  color: #fff;
 }
 
 /* ---- Splitter ---- */
@@ -157,7 +211,7 @@ input:focus, textarea:focus {
   flex: 1;
 }
 .tree-node {
-  cursor: pointer;
+  cursor: default;
   user-select: none;
 }
 .tree-node-label {
@@ -167,6 +221,9 @@ input:focus, textarea:focus {
 }
 .tree-node-label:hover {
   background: var(--bg-input);
+}
+.tree-clickable {
+  cursor: pointer;
 }
 .tree-children {
   padding-left: 16px;
@@ -201,6 +258,25 @@ input:focus, textarea:focus {
 .tree-btn:hover {
   background: var(--bg-input);
   color: var(--fg);
+}
+.tree-spinner {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--fg-dim);
+  animation: spin 1s linear infinite;
+}
+.tree-filter-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+}
+.tree-filter-input {
+  padding: 2px 4px 2px 16px;
+}
+.tree-filter-input input {
+  width: 100%;
+  font-size: 11px;
+  padding: 2px 6px;
 }
 
 /* ---- Result grid ---- */
@@ -1213,4 +1289,21 @@ input:focus, textarea:focus {
 .db-detail-grid b {
   color: var(--fg);
   font-weight: 500;
+}
+
+/* ---- Detail grid (TablePanel / SqlModulePanel) ---- */
+.detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.detail-row {
+  display: contents;
+}
+.detail-label {
+  color: var(--fg-dim);
+  font-weight: 500;
+  white-space: nowrap;
 }

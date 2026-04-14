@@ -4,14 +4,14 @@ schemaName string,
 tableName string,
 totalSpaceMB decimal,
 usedSpaceMB decimal,
-rowCount bigint
+rowsCount bigint
 */
 SELECT
   s.name schemaName,
   t.name tableName,
   CONVERT(decimal(18,2), SUM(a.total_pages) * 8.0 / 1024) totalSpaceMB,
   CONVERT(decimal(18,2), SUM(a.used_pages) * 8.0 / 1024) usedSpaceMB,
-  SUM(p.rows) rowCount
+  SUM(p.rows) rowsCount
 FROM sys.tables t (NOLOCK)
   JOIN sys.schemas s (NOLOCK) ON t.schema_id = s.schema_id
   JOIN sys.indexes i (NOLOCK) ON t.object_id = i.object_id

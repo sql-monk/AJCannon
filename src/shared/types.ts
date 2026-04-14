@@ -8,12 +8,15 @@ export interface ConnectionConfig {
 }
 
 // ---- Tree context (selected node determines right-panel content) ----
-export type TreeView = "overview" | "activity" | "agent" | "databases" | "security" | "server" | "configuration" | "alwayson" | "extendedevents" | "db-querystats" | "db-backups" | "db-storage" | "db-security" | "db-tables" | "db-views" | "db-procedures" | "db-scalar-functions" | "db-tvf" | "db-user-types" | "db-qs-regressed" | "db-qs-resource" | "db-qs-forced" | "db-filegroups" | "db-partitioning";
+export type TreeView = "overview" | "activity" | "agent" | "databases" | "security" | "server" | "configuration" | "alwayson" | "extendedevents" | "db-querystats" | "db-backups" | "db-storage" | "db-security" | "db-tables" | "db-views" | "db-procedures" | "db-scalar-functions" | "db-tvf" | "db-user-types" | "db-qs-regressed" | "db-qs-resource" | "db-qs-forced" | "db-filegroups" | "db-partitioning" | "table" | "sqlmodule";
 
 export interface TreeContext {
   server: string;
   view: TreeView;
   database?: string;
+  schema?: string;
+  objectName?: string;
+  objectType?: string;
 }
 
 // ---- Object Explorer ----
@@ -124,7 +127,7 @@ export interface ObjectSpaceInfo {
   tableName: string;
   totalSpaceMB: number;
   usedSpaceMB: number;
-  rowCount: number;
+  rowsCount: number;
 }
 
 // ---- Current Activity (sessions) ----
@@ -208,6 +211,17 @@ export interface AgentJobStep {
   stepId: number;
   stepName: string;
   subsystem: string;
+  onSuccessAction: string;
+  onFailAction: string;
+  command: string;
+}
+
+export interface AgentJobSchedule {
+  scheduleName: string;
+  freqType: string;
+  freqInterval: number;
+  enabled: boolean;
+  nextRunDate: string | null;
 }
 
 export interface RunningJob {
@@ -346,6 +360,86 @@ export interface DdlHistoryEvent {
   tsql_command: string;
 }
 
+// ---- Table Panel ----
+export interface TableDetailInfo {
+  schemaName: string;
+  tableName: string;
+  rowsCount: number;
+  totalSpaceMB: number;
+  usedSpaceMB: number;
+  createdDate: string;
+  modifiedDate: string;
+  hasIdentity: boolean;
+  isReplicated: boolean;
+  lockEscalation: string;
+}
+
+export interface TableColumnDetail {
+  columnId: number;
+  name: string;
+  typeName: string;
+  maxLength: number;
+  precision: number;
+  scale: number;
+  isNullable: boolean;
+  isIdentity: boolean;
+  identitySeed: string | null;
+  identityIncrement: string | null;
+  defaultValue: string | null;
+  isComputed: boolean;
+  computedDefinition: string | null;
+  collation: string | null;
+}
+
+export interface TableTriggerInfo {
+  triggerName: string;
+  isEnabled: boolean;
+  isInsteadOf: boolean;
+  eventType: string;
+  createdDate: string;
+  modifiedDate: string;
+}
+
+export interface TablePermissionInfo {
+  principalName: string;
+  principalType: string;
+  permissionName: string;
+  stateDesc: string;
+}
+
+// ---- SQL Module Panel ----
+export interface SqlModuleInfo {
+  schemaName: string;
+  objectName: string;
+  objectType: string;
+  createdDate: string;
+  modifiedDate: string;
+  usesAnsiNulls: boolean;
+  usesQuotedIdentifier: boolean;
+  isSchemaBound: boolean;
+  executeAs: number;
+}
+
+export interface SqlModuleParameter {
+  parameterId: number;
+  parameterName: string;
+  typeName: string;
+  maxLength: number;
+  precision: number;
+  scale: number;
+  isOutput: boolean;
+  hasDefault: boolean;
+  defaultValue: string | null;
+}
+
+export interface SqlModuleDependency {
+  referencedSchema: string | null;
+  referencedEntity: string;
+  referencedType: string;
+  isCallerDependent: boolean;
+  isAmbiguous: boolean;
+}
+
 // ---- IPC channel names ----
 export const IpcChannels = {
   CONNECT:               "sql:connect",
@@ -372,6 +466,7 @@ export const IpcChannels = {
   GET_EXPENSIVE_QUERIES: "sql:get-expensive-queries",
   GET_AGENT_JOBS:        "sql:get-agent-jobs",
   GET_JOB_STEPS:         "sql:get-job-steps",
+  GET_JOB_SCHEDULES:     "sql:get-job-schedules",
   GET_RUNNING_JOBS:      "sql:get-running-jobs",
   STOP_AGENT_JOB:        "sql:stop-agent-job",
   TOGGLE_AGENT_JOB:      "sql:toggle-agent-job",
@@ -398,4 +493,15 @@ export const IpcChannels = {
   GET_SQL_QUERIES:        "app:get-sql-queries",
   OPEN_IN_EDITOR:         "app:open-in-editor",
   OPEN_IN_EXPLORER:       "app:open-in-explorer",
+  // Table Panel
+  GET_TABLE_DETAIL:         "sql:get-table-detail",
+  GET_TABLE_COLUMNS_DETAIL: "sql:get-table-columns-detail",
+  GET_TABLE_TRIGGERS:       "sql:get-table-triggers",
+  GET_TABLE_PERMISSIONS:    "sql:get-table-permissions",
+  GET_TABLE_DATA_SAMPLE:    "sql:get-table-data-sample",
+  // SQL Module Panel
+  GET_MODULE_INFO:          "sql:get-module-info",
+  GET_MODULE_DEFINITION:    "sql:get-module-definition",
+  GET_MODULE_PARAMETERS:    "sql:get-module-parameters",
+  GET_MODULE_DEPENDENCIES:  "sql:get-module-dependencies",
 } as const;
