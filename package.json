@@ -1,0 +1,43 @@
+{
+  "name": "AJCannon",
+  "version": "0.1.0",
+  "description": "SQL Server 2022 GUI — Object Explorer, Disk Space Diagrams, Query Executor",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "copy:sql": "node -e \"require('fs').cpSync('src/main/sql/queries','dist/main/sql/queries',{recursive:true})\"",
+    "build:main": "tsc -p tsconfig.main.json && npm run copy:sql",
+    "build:renderer": "webpack --config webpack.config.ts --mode production",
+    "build": "npm run build:main && npm run build:renderer",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:renderer": "webpack serve --config webpack.config.ts --mode development",
+    "start": "npm run build && electron .",
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on http://localhost:9000 && cross-env ELECTRON_RENDERER_URL=http://localhost:9000 AJCANNON_OPEN_DEVTOOLS=1 electron .\""
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "msnodesqlv8": "^4.2.1",
+    "mssql": "^11.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.0"
+  },
+  "devDependencies": {
+    "@types/mssql": "^9.1.5",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^7.1.2",
+    "electron": "^33.2.0",
+    "html-webpack-plugin": "^5.6.3",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "wait-on": "^8.0.1",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.0"
+  }
+}
