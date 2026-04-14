@@ -4,6 +4,8 @@ import { Dashboard } from "./components/Dashboard";
 import { ActivityPanel } from "./components/ActivityPanel";
 import { AgentPanel } from "./components/AgentPanel";
 import { ServerPanel } from "./components/ServerPanel";
+import { DatabasesPanel } from "./components/DatabasesPanel";
+import { DatabasePanel } from "./components/DatabasePanel";
 import { bridge } from "./bridge";
 import type { AppConfig, SqlQueryFile } from "./bridge";
 import type { TreeContext } from "../shared/types";
@@ -263,7 +265,10 @@ export function App() {
       case "overview":
         return <ServerPanel server={ctx.server} onShowSql={openQueriesModal} />;
       case "databases":
-        return <ServerPanel server={ctx.server} onShowSql={openQueriesModal} />;
+        if (ctx.database) {
+          return <DatabasePanel server={ctx.server} database={ctx.database} />;
+        }
+        return <DatabasesPanel server={ctx.server} />;
       case "security":
         return (
           <div className="tab-content">

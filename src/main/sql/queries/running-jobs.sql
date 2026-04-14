@@ -4,14 +4,16 @@ jobId string,
 jobName string,
 startTime string,
 currentStep int,
-currentStepName string
+currentStepName string,
+durationSec int
 */
 SELECT
   CONVERT(varchar(36), ja.job_id) jobId,
   j.name jobName,
   CONVERT(varchar(30), ja.run_requested_date, 120) startTime,
   ISNULL(ja.last_executed_step_id, 0) currentStep,
-  ISNULL(js.step_name, '') currentStepName
+  ISNULL(js.step_name, '') currentStepName,
+  DATEDIFF(SECOND, ja.run_requested_date, GETDATE()) durationSec
 FROM msdb.dbo.sysjobactivity ja (NOLOCK)
   JOIN msdb.dbo.sysjobs j (NOLOCK) ON ja.job_id = j.job_id
   LEFT JOIN msdb.dbo.sysjobsteps js (NOLOCK)

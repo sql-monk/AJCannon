@@ -70,6 +70,10 @@ export function registerIpcHandlers(): void {
     return Q.getCpuByDb(server);
   });
 
+  ipcMain.handle(IpcChannels.GET_IO_BY_DB, async (_e, server: string) => {
+    return Q.getIoByDb(server);
+  });
+
   ipcMain.handle(IpcChannels.GET_WAIT_STATS, async (_e, server: string) => {
     return Q.getWaitStats(server);
   });
@@ -174,6 +178,18 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.GET_DATABASE_OVERVIEW, async (_e, server: string) => {
     return Q.getDatabaseOverview(server);
+  });
+
+  ipcMain.handle(IpcChannels.GET_DATABASE_DETAIL, async (_e, server: string, dbName: string) => {
+    return Q.getDatabaseDetail(server, dbName);
+  });
+
+  ipcMain.handle(IpcChannels.GET_DATABASE_EXT_PROPS, async (_e, server: string, dbName: string) => {
+    return Q.getDatabaseExtProps(server, dbName);
+  });
+
+  ipcMain.handle(IpcChannels.GET_DATABASE_DDL_HISTORY, async (_e, server: string, dbName: string) => {
+    return Q.getDatabaseDdlHistory(server, dbName);
   });
 
   ipcMain.handle(IpcChannels.GET_AVAILABILITY_GROUPS, async (_e, server: string) => {

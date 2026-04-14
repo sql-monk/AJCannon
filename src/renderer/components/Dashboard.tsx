@@ -146,7 +146,7 @@ export function Dashboard({ servers }: Props) {
         </button>
       </div>
 
-      <div className="dashboard-corner dashboard-corner-right">
+      <div className="dashboard-corner solar-classifier">
         <button
           className="dashboard-image-btn"
           onClick={() => setShowSpectralModal(true)}

@@ -33,11 +33,60 @@ function dbColor(name: string, state: string, isSystem: boolean, agName?: string
   return "var(--fg-dim)";
 }
 
+/* --- Inline SVG icon components --- */
+
+/** Activity: task-manager style — small window with performance bars */
+function ActivityIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14">
+      <rect x="1" y="2" width="14" height="12" rx="1.5" fill="none" stroke="#6a9" strokeWidth="1.2" />
+      <line x1="1" y1="5" x2="15" y2="5" stroke="#6a9" strokeWidth="0.8" />
+      <rect x="3.5" y="7" width="2" height="5" rx="0.3" fill="#5b5" />
+      <rect x="7" y="9" width="2" height="3" rx="0.3" fill="#7c4" />
+      <rect x="10.5" y="6.5" width="2" height="5.5" rx="0.3" fill="#5b5" />
+    </svg>
+  );
+}
+
+/** Always On: computer-cluster style — two linked servers */
+function ClusterIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14">
+      <rect x="1" y="2" width="5" height="4" rx="0.8" fill="#5588bb" />
+      <rect x="10" y="2" width="5" height="4" rx="0.8" fill="#5588bb" />
+      <rect x="1" y="10" width="5" height="4" rx="0.8" fill="#5588bb" />
+      <rect x="10" y="10" width="5" height="4" rx="0.8" fill="#5588bb" />
+      <line x1="6" y1="4" x2="10" y2="4" stroke="#8ab" strokeWidth="0.9" />
+      <line x1="6" y1="12" x2="10" y2="12" stroke="#8ab" strokeWidth="0.9" />
+      <line x1="3.5" y1="6" x2="3.5" y2="10" stroke="#8ab" strokeWidth="0.9" />
+      <line x1="12.5" y1="6" x2="12.5" y2="10" stroke="#8ab" strokeWidth="0.9" />
+    </svg>
+  );
+}
+
+/** Agent: automation/robot — gear with play arrow */
+function AgentIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14">
+      <circle cx="8" cy="8" r="6" fill="none" stroke="#c89b3c" strokeWidth="1" />
+      <circle cx="8" cy="8" r="3.5" fill="none" stroke="#c89b3c" strokeWidth="0.8" />
+      {/* Gear teeth */}
+      <rect x="7.2" y="1" width="1.6" height="2.2" rx="0.3" fill="#c89b3c" />
+      <rect x="7.2" y="12.8" width="1.6" height="2.2" rx="0.3" fill="#c89b3c" />
+      <rect x="1" y="7.2" width="2.2" height="1.6" rx="0.3" fill="#c89b3c" />
+      <rect x="12.8" y="7.2" width="2.2" height="1.6" rx="0.3" fill="#c89b3c" />
+      {/* Play arrow in center */}
+      <polygon points="6.8,5.8 6.8,10.2 10.5,8" fill="#c89b3c" />
+    </svg>
+  );
+}
+
 /** Icons for tree node types */
-const ICO = {
-  folder: "📁", server: "🖥️", activity: "�", checklist: "☑️",
-  database: "🗄️", agent: "⏱️", lock: "🔒", events: "🔍",
-  config: "⚙️", backup: "💾", disk: "💽", querystore: "📋",
+const ICO: Record<string, React.ReactNode> = {
+  folder: "📁", server: "🖥️", activity: <ActivityIcon />, checklist: <ClusterIcon />,
+  database: "🗄️", agent: <AgentIcon />, lock: "🛡️", events: "🔍",
+  config: "⚙️", backup: "💾", disk: "💽", querystore: "📊",
+  security: "🛡️", storage: "💾",
 };
 
 /** Database icon colored by state — inline SVG cylinder */
@@ -98,7 +147,7 @@ export function ObjectExplorer({ servers, filter, onContextChange, onServerRemov
 }
 
 /* ---------- Leaf with icon ---------- */
-function IconLeaf({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function IconLeaf({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <div className="tree-node">
       <div className="tree-node-label" onClick={onClick}>
@@ -160,7 +209,7 @@ function ServerNode({
           <IconLeaf icon={ICO.checklist} label="Always On" onClick={() => onContextChange({ server, view: "alwayson" })} />
           <DatabasesBranch server={server} filter={filter} onContextChange={onContextChange} />
           <IconLeaf icon={ICO.agent} label="Agent" onClick={() => onContextChange({ server, view: "agent" })} />
-          <IconLeaf icon={ICO.lock} label="Security" onClick={() => onContextChange({ server, view: "security" })} />
+          <IconLeaf icon={ICO.security} label="Security" onClick={() => onContextChange({ server, view: "security" })} />
           <IconLeaf icon={ICO.events} label="Extended Events" onClick={() => onContextChange({ server, view: "extendedevents" })} />
         </div>
       )}

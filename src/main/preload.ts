@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("sqlBridge", {
   // Overview
   getCpuOverview:       (server: string) => ipcRenderer.invoke(IpcChannels.GET_CPU_OVERVIEW, server),
   getCpuByDb:           (server: string) => ipcRenderer.invoke(IpcChannels.GET_CPU_BY_DB, server),
+  getIoByDb:            (server: string) => ipcRenderer.invoke(IpcChannels.GET_IO_BY_DB, server),
   getWaitStats:         (server: string) => ipcRenderer.invoke(IpcChannels.GET_WAIT_STATS, server),
   getBlocking:          (server: string) => ipcRenderer.invoke(IpcChannels.GET_BLOCKING, server),
 
@@ -71,6 +72,9 @@ contextBridge.exposeInMainWorld("sqlBridge", {
   getRamOverview:       (server: string) => ipcRenderer.invoke(IpcChannels.GET_RAM_OVERVIEW, server),
   getDatabaseSizes:     (server: string) => ipcRenderer.invoke(IpcChannels.GET_DATABASE_SIZES, server),
   getDatabaseOverview:  (server: string) => ipcRenderer.invoke(IpcChannels.GET_DATABASE_OVERVIEW, server),
+  getDatabaseDetail:    (server: string, dbName: string) => ipcRenderer.invoke(IpcChannels.GET_DATABASE_DETAIL, server, dbName),
+  getDatabaseExtProps:  (server: string, dbName: string) => ipcRenderer.invoke(IpcChannels.GET_DATABASE_EXT_PROPS, server, dbName),
+  getDatabaseDdlHistory: (server: string, dbName: string) => ipcRenderer.invoke(IpcChannels.GET_DATABASE_DDL_HISTORY, server, dbName),
   getAvailabilityGroups: (server: string) => ipcRenderer.invoke(IpcChannels.GET_AVAILABILITY_GROUPS, server),
 
   // DDL Actions

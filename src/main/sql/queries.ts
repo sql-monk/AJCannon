@@ -17,6 +17,7 @@ import type {
   ObjectSpaceInfo,
   CpuSnapshot,
   CpuByDatabase,
+  IoByDatabase,
   WaitStatInfo,
   BlockingProcess,
   ServerSummary,
@@ -37,6 +38,9 @@ import type {
   DatabaseSizeInfo,
   DatabaseOverviewInfo,
   AvailabilityGroupInfo,
+  DatabaseDetailInfo,
+  ExtendedProperty,
+  DdlHistoryEvent,
 } from "../../shared/types";
 
 /* ------------------------------------------------------------------ */
@@ -527,6 +531,11 @@ export async function getCpuByDb(server: string): Promise<CpuByDatabase[]> {
   return result.recordset;
 }
 
+export async function getIoByDb(server: string): Promise<IoByDatabase[]> {
+  const result = await queryServer<IoByDatabase>(server, loadSql("io-by-db"));
+  return result.recordset;
+}
+
 const BENIGN_WAITS = [
   'CLR_SEMAPHORE','LAZYWRITER_SLEEP','RESOURCE_QUEUE','SLEEP_TASK',
   'SLEEP_SYSTEMTASK','SQLTRACE_BUFFER_FLUSH','WAITFOR','LOGMGR_QUEUE',
@@ -860,5 +869,39 @@ export async function grantPermission(
     return { success: true, message: `Granted ${permission} to ${loginName}.` };
   } catch (e: unknown) {
     return { success: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/* ================================================================== */
+/*  Database Detail (single DB info, ext properties, DDL history)     */
+/* ================================================================== */
+
+export async function getDatabaseDetail(
+  server: string,
+  dbName: string,
+): Promise<DatabaseDetailInfo> {
+  const result = await queryDb<DatabaseDetailInfo>(server, dbName, loadSql("database-info"));
+  return result.recordset[0];
+}
+
+export async function getDatabaseExtProps(
+  server: string,
+  dbName: string,
+): Promise<ExtendedProperty[]> {
+  const result = await queryDb<ExtendedProperty>(server, dbName, loadSql("database-extended-properties"));
+  return result.recordset;
+}
+
+export async function getDatabaseDdlHistory(
+  server: string,
+  dbName: string,
+): Promise<DdlHistoryEvent[]> {
+  try {
+    const sql = loadSql("database-ddl-history")
+      .replace("{{dbName}}", escapeSqlString(dbName));
+    const result = await queryServer<DdlHistoryEvent>(server, sql);
+    return result.recordset;
+  } catch {
+    return [];
   }
 }

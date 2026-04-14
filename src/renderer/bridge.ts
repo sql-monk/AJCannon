@@ -6,6 +6,7 @@ import type {
   ObjectSpaceInfo,
   CpuSnapshot,
   CpuByDatabase,
+  IoByDatabase,
   WaitStatInfo,
   BlockingProcess,
   ServerSummary,
@@ -26,6 +27,9 @@ import type {
   DatabaseSizeInfo,
   DatabaseOverviewInfo,
   AvailabilityGroupInfo,
+  DatabaseDetailInfo,
+  ExtendedProperty,
+  DdlHistoryEvent,
 } from "../shared/types";
 
 /** SQL query file descriptor */
@@ -64,6 +68,7 @@ export interface SqlBridge {
   // Overview
   getCpuOverview(server: string): Promise<CpuSnapshot[]>;
   getCpuByDb(server: string): Promise<CpuByDatabase[]>;
+  getIoByDb(server: string): Promise<IoByDatabase[]>;
   getWaitStats(server: string): Promise<WaitStatInfo[]>;
   getBlocking(server: string): Promise<BlockingProcess[]>;
 
@@ -101,6 +106,9 @@ export interface SqlBridge {
   getRamOverview(server: string): Promise<RamOverview>;
   getDatabaseSizes(server: string): Promise<DatabaseSizeInfo[]>;
   getDatabaseOverview(server: string): Promise<DatabaseOverviewInfo[]>;
+  getDatabaseDetail(server: string, dbName: string): Promise<DatabaseDetailInfo>;
+  getDatabaseExtProps(server: string, dbName: string): Promise<ExtendedProperty[]>;
+  getDatabaseDdlHistory(server: string, dbName: string): Promise<DdlHistoryEvent[]>;
   getAvailabilityGroups(server: string): Promise<AvailabilityGroupInfo[]>;
 
   // DDL Actions

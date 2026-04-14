@@ -336,15 +336,16 @@ input:focus, textarea:focus {
   z-index: 1200;
 }
 .dashboard-corner-left {
+  bottom: 100px;
   left: 14px;
 }
-.dashboard-corner-right {
-  right: 14px;
+.solar-classifier {
+  left: 14px;
 }
 .dashboard-mini-btn {
   padding: 4px 10px;
   font-size: 11px;
-  border-radius: 999px;
+  border-radius: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 .dashboard-image-btn {
@@ -382,7 +383,7 @@ input:focus, textarea:focus {
   .dashboard-corner-left {
     left: 8px;
   }
-  .dashboard-corner-right {
+  .solar-classifier {
     right: 8px;
   }
   .dashboard-image-btn img {
@@ -667,7 +668,7 @@ input:focus, textarea:focus {
   gap: 4px;
 }
 .progress-bar {
-  height: 16px;
+  height: 20px;
   background: var(--bg-input);
   border-radius: 3px;
   overflow: hidden;

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from "
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { bridge } from "../bridge";
 import { CollapsiblePanel, CollapsiblePanelRef } from "./CollapsiblePanel";
-import type { ServerInfo, VolumeSpaceInfo, ServerService, RamOverview, DatabaseOverviewInfo, AvailabilityGroupInfo, CmdResult, ServerConfigOption, CpuSnapshot } from "../../shared/types";
+import type { ServerInfo, VolumeSpaceInfo, ServerService, RamOverview, DatabaseOverviewInfo, AvailabilityGroupInfo, CmdResult, ServerConfigOption, CpuSnapshot, DatabaseSpaceOnVolume, FileSpaceInfo, ObjectSpaceInfo, ShrinkRequest } from "../../shared/types";
 
 interface Props {
   server: string;
@@ -91,10 +91,12 @@ function ActionsSection({ server }: { server: string }) {
   return (
     <>
       <div className="cpanel">
-        <div className="cpanel-body" style={{ display: "flex", gap: 8, padding: "8px 10px" }}>
-          <button onClick={() => openModal("db")}>Create Database</button>
-          <button onClick={() => openModal("login")}>Create Login</button>
+        <div className="cpanel-body" style={{ display: "flex", gap: 8, padding: "8px 10px", alignItems: "center" }}>
           <button onClick={() => openModal("grant")}>Grant Permission</button>
+          <span style={{ color: "var(--fg-dim)", margin: "0 4px" }}>|</span>
+          <span style={{ color: "var(--fg-dim)", fontSize: 12 }}>new</span>
+          <button onClick={() => openModal("db")}>Create DB</button>
+          <button onClick={() => openModal("login")}>Create Login</button>
         </div>
       </div>
 
@@ -136,18 +138,28 @@ function ActionsSection({ server }: { server: string }) {
   );
 }
 
-/* ==== Disks Section ==== */
+/* ==== Volumes Section (formerly Disks) ==== */
 const DiskSection = forwardRef<CollapsiblePanelRef, SectionProps>(function DiskSection({ server, onShowSql }, ref) {
   const [disks, setDisks] = useState<VolumeSpaceInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expandedVol, setExpandedVol] = useState<string | null>(null);
+  const [volDbs, setVolDbs] = useState<DatabaseSpaceOnVolume[]>([]);
+  const [expandedDb, setExpandedDb] = useState<string | null>(null);
+  const [dbFiles, setDbFiles] = useState<FileSpaceInfo[]>([]);
+  const [expandedFile, setExpandedFile] = useState<number | null>(null);
+  const [fileObjects, setFileObjects] = useState<ObjectSpaceInfo[]>([]);
+  const [subLoading, setSubLoading] = useState(false);
+  const [shrinkMsg, setShrinkMsg] = useState("");
   const panelRef = useRef<CollapsiblePanelRef>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      setDisks(await bridge.getVolumes(server));
+      const data = await bridge.getVolumes(server);
+      data.sort((a, b) => a.volumeMountPoint.localeCompare(b.volumeMountPoint));
+      setDisks(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -160,24 +172,195 @@ const DiskSection = forwardRef<CollapsiblePanelRef, SectionProps>(function DiskS
     isCollapsed() { return panelRef.current?.isCollapsed() ?? false; },
   }), []);
 
+  async function toggleVolume(vol: string) {
+    if (expandedVol === vol) {
+      setExpandedVol(null);
+      return;
+    }
+    setExpandedVol(vol);
+    setExpandedDb(null);
+    setExpandedFile(null);
+    setSubLoading(true);
+    try {
+      setVolDbs(await bridge.getDbSpace(server, vol));
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
+  async function toggleDb(dbName: string) {
+    if (expandedDb === dbName) {
+      setExpandedDb(null);
+      return;
+    }
+    setExpandedDb(dbName);
+    setExpandedFile(null);
+    setSubLoading(true);
+    try {
+      setDbFiles(await bridge.getFileSpace(server, dbName));
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
+  async function toggleFile(fileId: number) {
+    if (expandedFile === fileId) {
+      setExpandedFile(null);
+      return;
+    }
+    setExpandedFile(fileId);
+    setSubLoading(true);
+    try {
+      setFileObjects(await bridge.getObjectSpace(server, expandedDb!, fileId));
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
+  async function handleShrink(dbName: string, fileId: number) {
+    setShrinkMsg("");
+    const result = await bridge.shrink({ server, databaseName: dbName, fileId });
+    setShrinkMsg(result.message);
+    if (expandedDb) {
+      setDbFiles(await bridge.getFileSpace(server, expandedDb));
+    }
+  }
+
+  function volumeColor(d: VolumeSpaceInfo): string {
+    const freePct = d.totalMB > 0 ? (d.freeMB / d.totalMB) * 100 : 100;
+    if (freePct < 10) return "rgb(140, 40, 40)";
+    if (freePct < 25) return "rgb(200, 80, 30)";
+    return "rgb(40, 140, 40)";
+  }
+
+  function formatSize(mb: number): string {
+    if (mb >= 1048576) return `${(mb / 1048576).toFixed(2)} TB`;
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    if (mb >= 1) return `${mb.toFixed(1)} MB`;
+    return `${(mb * 1024).toFixed(0)} KB`;
+  }
+
+  function fileBarColor(type: string, isReadOnly: boolean): string {
+    if (isReadOnly) return "#999";
+    if (type === "LOG") return "#b8860b";
+    return "#1a4a7a";
+  }
+
+  function fileFreeColor(): string {
+    return "#555";
+  }
+
+  function shrinkBtnColor(type: string): string {
+    if (type === "LOG") return "rgb(40, 100, 40)";
+    return "rgb(140, 40, 40)";
+  }
+
+  const maxFileSizeMB = dbFiles.length > 0 ? Math.max(...dbFiles.map(f => f.sizeMB)) : 1;
+
   return (
-    <CollapsiblePanel ref={panelRef} storageKey={`server:disks:${server}`} title="Disks" sqlPrefix="volume" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
+    <CollapsiblePanel ref={panelRef} storageKey={`server:disks:${server}`} title="Volumes" sqlPrefix="volume" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
+      {shrinkMsg && <div className="success-msg" style={{ marginBottom: 8 }}>{shrinkMsg}</div>}
       <div className="disk-bars">
         {disks.map((d) => {
           const pct = d.totalMB > 0 ? Math.round((d.usedMB / d.totalMB) * 100) : 0;
-          const color = pct > 90 ? "var(--danger)" : pct > 75 ? "#f0ad4e" : "var(--accent)";
+          const color = volumeColor(d);
+          const isExpanded = expandedVol === d.volumeMountPoint;
           return (
-            <div key={d.volumeMountPoint} className="disk-bar-row">
-              <div className="disk-bar-label">
-                <span>{d.volumeMountPoint}</span>
-                {d.volumeName && <span style={{ color: "var(--fg-dim)" }}> ({d.volumeName})</span>}
-                <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
-                  {(d.usedMB / 1024).toFixed(1)} / {(d.totalMB / 1024).toFixed(1)} GB ({pct}%)
-                </span>
+            <div key={d.volumeMountPoint}>
+              <div className="disk-bar-row" style={{ cursor: "pointer" }} onClick={() => toggleVolume(d.volumeMountPoint)}>
+                <div className="disk-bar-label">
+                  <span>{isExpanded ? "▾" : "▸"} {d.volumeMountPoint}</span>
+                  {d.volumeName && <span style={{ color: "var(--fg-dim)" }}> ({d.volumeName})</span>}
+                </div>
+                <div className="progress-bar">
+                  <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color }}>
+                    <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}> {(d.usedMB / 1024).toFixed(1)} / {(d.totalMB / 1024).toFixed(1)} GB ({pct}%) </span>
+                  </div>
+                </div>
               </div>
-              <div className="progress-bar">
-                <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color }} />
-              </div>
+              {isExpanded && (
+                <div style={{ paddingLeft: 16, marginTop: 4, marginBottom: 8 }}>
+                  {subLoading && !volDbs.length && <div className="loading">Loading...</div>}
+                  {volDbs.map(db => {
+                    const dbExpanded = expandedDb === db.databaseName;
+                    return (
+                      <div key={db.databaseId} style={{ marginBottom: 4 }}>
+                        <div style={{ cursor: "pointer", padding: "2px 0", fontSize: 12 }} onClick={() => toggleDb(db.databaseName)}>
+                          <span>{dbExpanded ? "▾" : "▸"}</span>{" "}
+                          <strong>{db.databaseName}</strong>
+                          <span style={{ color: "var(--fg-dim)", marginLeft: 8 }}>{formatSize(db.totalSizeMB)}</span>
+                        </div>
+                        {dbExpanded && (
+                          <div style={{ paddingLeft: 16 }}>
+                            {subLoading && !dbFiles.length && <div className="loading">Loading...</div>}
+                            {dbFiles.map(f => {
+                              const fileExpanded = expandedFile === f.fileId;
+                              const barWidth = maxFileSizeMB > 0 ? Math.max(5, (f.sizeMB / maxFileSizeMB) * 100) : 100;
+                              const usedPct = f.sizeMB > 0 ? (f.usedMB / f.sizeMB) * 100 : 0;
+                              const isLog = f.fileType === "LOG";
+                              const isReadOnly = f.filegroupName?.includes("READ_ONLY") ?? false;
+                              const fillColor = fileBarColor(f.fileType, isReadOnly);
+                              const freeStr = `Free ${formatSize(f.freeMB)} of ${formatSize(f.sizeMB)} (${Math.round(usedPct)}% used)`;
+                              const isData = f.fileType === "ROWS";
+
+                              return (
+                                <div key={f.fileId} style={{ marginBottom: 4 }}>
+                                  <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 11 }}>
+                                    {isData ? (
+                                      <span style={{ cursor: "pointer" }} onClick={() => toggleFile(f.fileId)}>
+                                        {fileExpanded ? "▾" : "▸"}
+                                      </span>
+                                    ) : <span style={{ width: 12 }}></span>}
+                                    <span style={{ minWidth: 160 }}>{f.fileName} <span style={{ color: "var(--fg-dim)" }}>({f.filegroupName || f.fileType})</span></span>
+                                    {!isReadOnly && (
+                                      <button
+                                        className="btn-sm"
+                                        style={{ background: shrinkBtnColor(f.fileType), color: "#fff", border: "none", fontSize: 10, padding: "1px 6px" }}
+                                        onClick={(e) => { e.stopPropagation(); handleShrink(db.databaseName, f.fileId); }}
+                                        title={`Shrink ${f.fileName}`}
+                                      >Shrink</button>
+                                    )}
+                                  </div>
+                                  <div style={{ width: `${barWidth}%`, minWidth: 100, height: 18, background: fileFreeColor(), borderRadius: 3, overflow: "hidden", position: "relative", marginTop: 2 }}>
+                                    <div style={{ width: `${usedPct}%`, height: "100%", background: fillColor, borderRadius: 3 }}></div>
+                                    <span style={{ position: "absolute", top: 0, left: 4, right: 4, lineHeight: "18px", fontSize: 10, color: "#ddd", whiteSpace: "nowrap" }}>{freeStr}</span>
+                                  </div>
+                                  {fileExpanded && (
+                                    <div style={{ paddingLeft: 24, marginTop: 4 }}>
+                                      {subLoading && !fileObjects.length && <div className="loading">Loading...</div>}
+                                      {fileObjects.length > 0 ? (
+                                        <table className="result-grid" style={{ fontSize: 11 }}>
+                                          <thead>
+                                            <tr><th>Schema</th><th>Table</th><th>Size MB</th><th>Used MB</th><th>Rows</th></tr>
+                                          </thead>
+                                          <tbody>
+                                            {fileObjects.map((o, i) => (
+                                              <tr key={i}>
+                                                <td>{o.schemaName}</td>
+                                                <td>{o.tableName}</td>
+                                                <td className="num">{o.totalSpaceMB}</td>
+                                                <td className="num">{o.usedSpaceMB}</td>
+                                                <td className="num">{o.rowCount.toLocaleString()}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      ) : (
+                                        <div style={{ color: "var(--fg-dim)", fontSize: 11 }}>No user tables on this file.</div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {volDbs.length === 0 && !subLoading && <div style={{ color: "var(--fg-dim)", fontSize: 11 }}>No databases on this volume.</div>}
+                </div>
+              )}
             </div>
           );
         })}
@@ -264,9 +447,6 @@ const DatabasesSection = forwardRef<CollapsiblePanelRef, SectionProps>(function 
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [addName, setAddName] = useState("");
-  const [addBusy, setAddBusy] = useState(false);
-  const [addResult, setAddResult] = useState<CmdResult | null>(null);
   const panelRef = useRef<CollapsiblePanelRef>(null);
 
   const load = useCallback(async () => {
@@ -294,22 +474,6 @@ const DatabasesSection = forwardRef<CollapsiblePanelRef, SectionProps>(function 
     });
   }
 
-  async function handleAdd() {
-    const name = addName.trim();
-    if (!name) return;
-    setAddBusy(true);
-    setAddResult(null);
-    try {
-      const res = await bridge.createDatabase(server, name);
-      setAddResult(res);
-      if (res.success) { setAddName(""); panelRef.current?.refresh(); }
-    } catch (e: unknown) {
-      setAddResult({ success: false, message: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setAddBusy(false);
-    }
-  }
-
   const lc = filter.toLowerCase();
   const filtered = lc ? dbs.filter((d) => d.databaseName.toLowerCase().includes(lc)) : dbs;
 
@@ -321,20 +485,6 @@ const DatabasesSection = forwardRef<CollapsiblePanelRef, SectionProps>(function 
 
   return (
     <CollapsiblePanel ref={panelRef} storageKey={`server:dbs:${server}`} title={`Databases (${filtered.length}/${dbs.length})`} sqlPrefix="database" onShowSql={onShowSql} loadData={load} loading={loading} error={error}>
-      {/* Add database row */}
-      <div className="db-add-row">
-        <input
-          value={addName}
-          onChange={(e) => setAddName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
-          placeholder="New database name"
-          disabled={addBusy}
-          style={{ flex: 1 }}
-        />
-        <button onClick={handleAdd} disabled={addBusy || !addName.trim()}>Add</button>
-      </div>
-      {addResult && <div className={addResult.success ? "success-msg" : "error-msg"} style={{ fontSize: 11, padding: "2px 8px" }}>{addResult.message}</div>}
-
       {/* Filter */}
       <div style={{ padding: "4px 8px" }}>
         <input

@@ -6,7 +6,8 @@ enabled bit,
 description string,
 lastRunDate string,
 lastRunOutcome string,
-currentlyExecuting int
+currentlyExecuting int,
+nextRunDate string
 */
 SELECT
   CONVERT(varchar(36), j.job_id) jobId,
@@ -22,7 +23,16 @@ SELECT
     ELSE 'Unknown'
   END lastRunOutcome,
   CASE WHEN ja.run_requested_date IS NOT NULL
-    AND ja.stop_execution_date IS NULL THEN 1 ELSE 0 END currentlyExecuting
+    AND ja.stop_execution_date IS NULL THEN 1 ELSE 0 END currentlyExecuting,
+  CONVERT(varchar(30),
+    CASE WHEN js.next_run_date > 0
+      THEN CONVERT(datetime,
+        CONVERT(varchar(8), js.next_run_date) + ' '
+        + STUFF(STUFF(RIGHT('000000' + CONVERT(varchar(6), js.next_run_time), 6), 3, 0, ':'), 6, 0, ':'),
+        112)
+      ELSE NULL
+    END,
+  120) nextRunDate
 FROM msdb.dbo.sysjobs j (NOLOCK)
   LEFT JOIN msdb.dbo.sysjobactivity ja (NOLOCK) ON j.job_id = ja.job_id
     AND ja.session_id = (
@@ -36,4 +46,10 @@ FROM msdb.dbo.sysjobs j (NOLOCK)
     WHERE jh2.job_id = j.job_id AND jh2.step_id = 0
     ORDER BY jh2.run_date DESC, jh2.run_time DESC
   ) jh
+  OUTER APPLY (
+    SELECT TOP 1 js2.next_run_date, js2.next_run_time
+    FROM msdb.dbo.sysjobschedules js2 (NOLOCK)
+    WHERE js2.job_id = j.job_id
+    ORDER BY js2.next_run_date DESC, js2.next_run_time DESC
+  ) js
 ORDER BY j.name;

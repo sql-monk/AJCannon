@@ -56,6 +56,13 @@ export interface CpuByDatabase {
   totalCpuMs: number;
 }
 
+export interface IoByDatabase {
+  databaseName: string;
+  totalReadsMB: number;
+  totalWritesMB: number;
+  totalIoMB: number;
+}
+
 export interface WaitStatInfo {
   waitType: string;
   waitCount: number;
@@ -194,6 +201,7 @@ export interface AgentJob {
   lastRunDate: string | null;
   lastRunOutcome: string;
   currentlyExecuting: boolean;
+  nextRunDate: string | null;
 }
 
 export interface AgentJobStep {
@@ -208,6 +216,7 @@ export interface RunningJob {
   startTime: string;
   currentStep: number;
   currentStepName: string;
+  durationSec: number;
 }
 
 // ---- Server info ----
@@ -309,6 +318,34 @@ export interface CmdResult {
   message: string;
 }
 
+// ---- Database detail info (single DB) ----
+export interface DatabaseDetailInfo {
+  databaseName: string;
+  totalSizeMB: number;
+  lastBackupDate: string | null;
+  tableCount: number;
+  sqlModuleCount: number;
+  filegroupCount: number;
+  fileCount: number;
+}
+
+export interface ExtendedProperty {
+  propertyName: string;
+  propertyValue: string;
+}
+
+export interface DdlHistoryEvent {
+  event_type: string;
+  post_time: string;
+  login_name: string;
+  role_name: string;
+  object_type: string;
+  schema_name: string;
+  object_name: string;
+  target_object_name: string;
+  tsql_command: string;
+}
+
 // ---- IPC channel names ----
 export const IpcChannels = {
   CONNECT:               "sql:connect",
@@ -324,6 +361,7 @@ export const IpcChannels = {
   GET_OBJECT_SPACE:      "sql:get-object-space",
   GET_CPU_OVERVIEW:      "sql:get-cpu-overview",
   GET_CPU_BY_DB:         "sql:get-cpu-by-db",
+  GET_IO_BY_DB:          "sql:get-io-by-db",
   GET_WAIT_STATS:        "sql:get-wait-stats",
   GET_BLOCKING:          "sql:get-blocking",
   GET_SERVER_SUMMARY:    "sql:get-server-summary",
@@ -345,6 +383,9 @@ export const IpcChannels = {
   GET_RAM_OVERVIEW:       "sql:get-ram-overview",
   GET_DATABASE_SIZES:     "sql:get-database-sizes",
   GET_DATABASE_OVERVIEW:  "sql:get-database-overview",
+  GET_DATABASE_DETAIL:    "sql:get-database-detail",
+  GET_DATABASE_EXT_PROPS: "sql:get-database-ext-props",
+  GET_DATABASE_DDL_HISTORY: "sql:get-database-ddl-history",
   GET_AVAILABILITY_GROUPS: "sql:get-availability-groups",
   CREATE_DATABASE:         "sql:create-database",
   CREATE_LOGIN:            "sql:create-login",

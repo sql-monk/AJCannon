@@ -16,7 +16,7 @@ hljs.registerLanguage("xml", xml);
 
 const REFRESH_OPTIONS = [3, 5, 10, 15, 30, 60];
 type SortKey = "cpuTime" | "reads" | "writes" | "logicalReads" | "waitTime";
-type ExpSortKey = "executionCount" | "totalCpuMs" | "avgCpuMs" | "totalReads" | "avgReads" | "totalDurationMs" | "avgDurationMs";
+type ExpSortKey = "executionCount" | "totalCpuMs" | "avgCpuMs" | "totalReads" | "avgReads" | "totalDurationMs" | "avgDurationMs" | "lastExecutionTime";
 
 interface Props { server: string; onError?: (msg: string) => void; onShowSql?: (prefix: string) => void; }
 
@@ -35,6 +35,9 @@ export function ActivityPanel({ server, onError, onShowSql }: Props) {
 
   /* Status multi-select filter */
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+
+  /* Quick filter: blocked / blocking */
+  const [quickFilter, setQuickFilter] = useState<"blocked" | "blocking" | null>(null);
 
   /* Expanded rows in active requests (inline query display) */
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -160,10 +163,15 @@ export function ActivityPanel({ server, onError, onShowSql }: Props) {
     });
   }
 
+  /* Set of session IDs that are blockers (someone else is blocked by them) */
+  const blockerIds = new Set(sessions.filter((s) => s.blockingSessionId > 0).map((s) => s.blockingSessionId));
+
   /* filter + sort */
   const lc = filter.toLowerCase();
   const filtered = sessions.filter((s) => {
     if (statusFilter.size > 0 && !statusFilter.has(s.status)) return false;
+    if (quickFilter === "blocked" && s.blockingSessionId <= 0) return false;
+    if (quickFilter === "blocking" && !blockerIds.has(s.sessionId)) return false;
     if (!lc) return true;
     return (
       String(s.sessionId).includes(lc) ||
@@ -181,9 +189,6 @@ export function ActivityPanel({ server, onError, onShowSql }: Props) {
     const bv = (b[sortKey] ?? 0) as number;
     return sortAsc ? av - bv : bv - av;
   });
-
-  /* Set of session IDs that are blockers (someone else is blocked by them) */
-  const blockerIds = new Set(sessions.filter((s) => s.blockingSessionId > 0).map((s) => s.blockingSessionId));
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((v) => !v);
@@ -366,12 +371,16 @@ export function ActivityPanel({ server, onError, onShowSql }: Props) {
           <input className="activity-filter" value={filter} onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter (login, host, db, command, query...)" />
           <div className="status-chips">
+            <button className={`chip ${quickFilter === "blocked" ? "chip-active" : ""}`}
+              onClick={() => setQuickFilter(prev => prev === "blocked" ? null : "blocked")}>blocked</button>
+            <button className={`chip ${quickFilter === "blocking" ? "chip-active" : ""}`}
+              onClick={() => setQuickFilter(prev => prev === "blocking" ? null : "blocking")}>blocking</button>
             {allStatuses.map((st) => (
               <button key={st}
                 className={`chip ${statusFilter.has(st) ? "chip-active" : ""}`}
                 onClick={() => toggleStatus(st)}>{st}</button>
             ))}
-            {statusFilter.size > 0 && <button className="chip chip-clear" onClick={() => setStatusFilter(new Set())}>Clear</button>}
+            {(statusFilter.size > 0 || quickFilter) && <button className="chip chip-clear" onClick={() => { setStatusFilter(new Set()); setQuickFilter(null); }}>Clear</button>}
           </div>
         </div>
         <div className="activity-grid-wrap">
