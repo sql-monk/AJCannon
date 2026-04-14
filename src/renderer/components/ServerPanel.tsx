@@ -424,10 +424,11 @@ function DbCardList({ dbs, expanded, onToggle, fmtMB, loading }: {
             <svg className="db-icon" viewBox="0 0 16 16" fill={iconClr}><ellipse cx="8" cy="3.5" rx="6" ry="2.5"/><path d="M2 3.5v9c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-9" fill="none" stroke={iconClr} strokeWidth="1.2"/><path d="M2 8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" fill="none" stroke={iconClr} strokeWidth="1.2"/></svg>
             <span style={{ color: dbNameColor(d) }}>{d.databaseName}</span>
           </span>
+          {d.agSyncState && <span className="db-card-badge badge-info"> ({d.agSyncState})</span>}
           {d.stateDesc !== "ONLINE" && (
             <span className={`db-card-badge ${d.stateDesc === "RESTORING" || d.stateDesc === "RECOVERING" ? "badge-muted" : "badge-danger"}`}>{d.stateDesc}</span>
           )}
-          {d.agName && <span className="db-card-badge badge-info">{d.agName} ({d.agSyncState})</span>}
+          
         </div>
         <div className="db-card-metrics">
           <span>Data: <b>{fmtMB(d.dataSizeMB)}</b></span>
