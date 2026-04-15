@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import hljs from "highlight.js/lib/core";
 import sql from "highlight.js/lib/languages/sql";
 import { bridge } from "../bridge";
+import { PageHeader } from "./PageHeader";
 import type { DatabaseDetailInfo, ExtendedProperty, DdlHistoryEvent, CmdResult } from "../../shared/types";
 
 hljs.registerLanguage("sql", sql);
@@ -156,10 +157,15 @@ export function DatabasePanel({ server, database }: Props) {
 
   return (
     <div className="page-panel">
-      <div className="page-header">
-        <h3>Database — {database}</h3>
-        <button onClick={refresh} disabled={loading}>{loading ? "..." : "Refresh"}</button>
-      </div>
+      <PageHeader
+        icon={<svg viewBox="0 0 16 16" width="24" height="24"><ellipse cx="8" cy="4" rx="6" ry="2.5" fill="#e5c07b"/><path d="M2 4v8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V4" fill="#e5c07b" opacity="0.75"/><ellipse cx="8" cy="12" rx="6" ry="2.5" fill="#e5c07b" opacity="0.6"/></svg>}
+        title={database}
+        server={server}
+        breadcrumb={[database]}
+        pageColor="#3a3a1a"
+        onRefresh={refresh}
+        loading={loading}
+      />
 
       {/* Quick Actions */}
       <div className="cpanel">
@@ -175,23 +181,49 @@ export function DatabasePanel({ server, database }: Props) {
       {info && (
         <div className="cpanel">
           <div className="cpanel-header"><span className="cpanel-title">General Info</span></div>
-          <div className="cpanel-body">
-            <div className="server-metrics">
-              <div className="server-metric">
-                <div className="server-metric-value">{fmtMB(info.totalSizeMB)}</div>
-                <div className="server-metric-label">Total Size</div>
+          <div className="cpanel-body" style={{ padding: "12px 16px" }}>
+            {/* Storage */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "var(--fg-dim)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Storage</div>
+              <div className="server-metrics" style={{ gap: 24 }}>
+                <div className="server-metric">
+                  <div className="server-metric-value">{fmtMB(info.totalSizeMB)}</div>
+                  <div className="server-metric-label">Total Size</div>
+                </div>
+                <div className="server-metric">
+                  <div className="server-metric-value">{info.filegroupCount}</div>
+                  <div className="server-metric-label">Filegroups</div>
+                </div>
+                <div className="server-metric">
+                  <div className="server-metric-value">{info.fileCount}</div>
+                  <div className="server-metric-label">Files</div>
+                </div>
               </div>
-              <div className="server-metric">
-                <div className="server-metric-value">{info.lastBackupDate ?? "Never"}</div>
-                <div className="server-metric-label">Last Full Backup</div>
+            </div>
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "8px 0" }} />
+            {/* Objects */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "var(--fg-dim)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Objects</div>
+              <div className="server-metrics" style={{ gap: 24 }}>
+                <div className="server-metric">
+                  <div className="server-metric-value">{info.tableCount}</div>
+                  <div className="server-metric-label">Tables</div>
+                </div>
+                <div className="server-metric">
+                  <div className="server-metric-value">{info.sqlModuleCount}</div>
+                  <div className="server-metric-label">SQL Modules</div>
+                </div>
               </div>
-              <div className="server-metric">
-                <div className="server-metric-value">{info.tableCount} / {info.sqlModuleCount}</div>
-                <div className="server-metric-label">Tables / SQL Modules</div>
-              </div>
-              <div className="server-metric">
-                <div className="server-metric-value">{info.filegroupCount} / {info.fileCount}</div>
-                <div className="server-metric-label">Filegroups / Files</div>
+            </div>
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "8px 0" }} />
+            {/* Backup */}
+            <div>
+              <div style={{ fontSize: 11, color: "var(--fg-dim)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Backup</div>
+              <div className="server-metrics" style={{ gap: 24 }}>
+                <div className="server-metric">
+                  <div className="server-metric-value" style={!info.lastBackupDate ? { color: "var(--danger)" } : undefined}>{info.lastBackupDate ?? "Never"}</div>
+                  <div className="server-metric-label">Last Full Backup</div>
+                </div>
               </div>
             </div>
           </div>

@@ -35,6 +35,7 @@ import type {
   TableColumnDetail,
   TableTriggerInfo,
   TablePermissionInfo,
+  ViewDetailInfo,
   SqlModuleInfo,
   SqlModuleParameter,
   SqlModuleDependency,
@@ -140,11 +141,21 @@ export interface SqlBridge {
   getTablePermissions(server: string, db: string, schema: string, table: string): Promise<TablePermissionInfo[]>;
   getTableDataSample(server: string, db: string, schema: string, table: string): Promise<Record<string, unknown>[]>;
 
+  // View Panel
+  getViewDetail(server: string, db: string, schema: string, viewName: string): Promise<ViewDetailInfo>;
+  getViewColumns(server: string, db: string, schema: string, viewName: string): Promise<TableColumnDetail[]>;
+  getViewTriggers(server: string, db: string, schema: string, viewName: string): Promise<TableTriggerInfo[]>;
+  getViewPermissions(server: string, db: string, schema: string, viewName: string): Promise<TablePermissionInfo[]>;
+  getViewDataSample(server: string, db: string, schema: string, viewName: string): Promise<Record<string, unknown>[]>;
+  getViewDdlHistory(server: string, db: string, schema: string, viewName: string): Promise<DdlHistoryEvent[]>;
+
   // SQL Module Panel
   getModuleInfo(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleInfo>;
   getModuleDefinition(server: string, db: string, schema: string, objectName: string): Promise<string>;
   getModuleParameters(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleParameter[]>;
   getModuleDependencies(server: string, db: string, schema: string, objectName: string): Promise<SqlModuleDependency[]>;
+  getModuleDdlHistory(server: string, db: string, schema: string, objectName: string): Promise<DdlHistoryEvent[]>;
+  saveModuleDefinition(server: string, db: string, definition: string): Promise<CmdResult>;
 }
 
 declare global {

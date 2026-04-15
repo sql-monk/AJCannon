@@ -49,9 +49,13 @@ export const CollapsiblePanel = forwardRef<CollapsiblePanelRef, Props>(function 
     setCollapsed((prev) => {
       const next = !prev;
       try { localStorage.setItem(STORAGE_PREFIX + storageKey, next ? "1" : "0"); } catch { /* ignore */ }
+      // Refresh data when expanding
+      if (!next && loadData) {
+        loadData();
+      }
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, loadData]);
 
   // Load data on mount if not collapsed
   useEffect(() => {

@@ -1,8 +1,24 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import hljs from "highlight.js/lib/core";
+import sqlLang from "highlight.js/lib/languages/sql";
+import powershellLang from "highlight.js/lib/languages/powershell";
+import dosLang from "highlight.js/lib/languages/dos";
 import { bridge } from "../bridge";
+import { PageHeader } from "./PageHeader";
 import type { AgentJob, AgentJobStep, AgentJobSchedule, RunningJob } from "../../shared/types";
 
 interface Props { server: string; onShowSql?: (prefix: string) => void; }
+
+hljs.registerLanguage("sql", sqlLang);
+hljs.registerLanguage("powershell", powershellLang);
+hljs.registerLanguage("dos", dosLang);
+
+function subsystemToLang(subsystem: string): string {
+  const s = subsystem.toUpperCase();
+  if (s === "TSQL" || s === "TRANSACTSQL" || s === "SQL") return "sql";
+  if (s === "POWERSHELL" || s === "CMDEXEC:POWERSHELL") return "powershell";
+  return "dos";
+}
 
 function formatDuration(sec: number): string {
   if (sec < 0) return "0s";
@@ -45,15 +61,18 @@ export function AgentPanel({ server, onShowSql }: Props) {
   // All Jobs filters + sort
   const [jobFilter, setJobFilter] = useState("");
   const [quickEnabledFilter, setQuickEnabledFilter] = useState<"enabled" | "disabled" | null>(null);
-  const [quickOutcomeFilter, setQuickOutcomeFilter] = useState<"success" | "failed" | "stopped" | null>(null);
+  const [quickOutcomeFilter, setQuickOutcomeFilter] = useState<Set<string>>(new Set());
+  const [quickCategoryFilter, setQuickCategoryFilter] = useState<Set<string>>(new Set());
   const [allSortKey, setAllSortKey] = useState<AllJobsSortKey>("jobName");
   const [allSortAsc, setAllSortAsc] = useState(true);
 
-  // Expanded job details (steps + schedules)
+  // Expanded job details (steps + schedules loaded separately)
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<AgentJobStep[]>([]);
   const [expandedSchedules, setExpandedSchedules] = useState<AgentJobSchedule[]>([]);
   const [expandedCmd, setExpandedCmd] = useState<number | null>(null); // stepId whose command is shown
+  const [stepsOpen, setStepsOpen] = useState(true);
+  const [schedulesOpen, setSchedulesOpen] = useState(true);
 
   const mountedRef = useRef(true);
 
@@ -130,6 +149,8 @@ export function AgentPanel({ server, onShowSql }: Props) {
     }
     setExpandedJobId(jobId);
     setExpandedCmd(null);
+    setStepsOpen(true);
+    setSchedulesOpen(true);
     const [s, sch] = await Promise.all([
       bridge.getJobSteps(server, jobId),
       bridge.getJobSchedules(server, jobId),
@@ -167,15 +188,30 @@ export function AgentPanel({ server, onShowSql }: Props) {
   }
 
   /* All jobs: filtered + sorted */
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    jobs.forEach(j => { if (j.categoryName) cats.add(j.categoryName); });
+    return Array.from(cats).sort();
+  }, [jobs]);
+
   const filteredSortedJobs = useMemo(() => {
     let list = [...jobs];
     const lc = jobFilter.toLowerCase();
     if (lc) list = list.filter(j => j.jobName.toLowerCase().includes(lc));
     if (quickEnabledFilter === "enabled") list = list.filter(j => j.enabled);
     if (quickEnabledFilter === "disabled") list = list.filter(j => !j.enabled);
-    if (quickOutcomeFilter === "success") list = list.filter(j => j.lastRunOutcome === "Succeeded");
-    if (quickOutcomeFilter === "failed") list = list.filter(j => j.lastRunOutcome === "Failed");
-    if (quickOutcomeFilter === "stopped") list = list.filter(j => j.lastRunOutcome === "Canceled");
+    if (quickOutcomeFilter.size > 0) {
+      list = list.filter(j => {
+        if (quickOutcomeFilter.has("success") && j.lastRunOutcome === "Succeeded") return true;
+        if (quickOutcomeFilter.has("failed") && j.lastRunOutcome === "Failed") return true;
+        if (quickOutcomeFilter.has("stopped") && j.lastRunOutcome === "Canceled") return true;
+        if (quickOutcomeFilter.has("unknown") && !["Succeeded", "Failed", "Canceled"].includes(j.lastRunOutcome)) return true;
+        return false;
+      });
+    }
+    if (quickCategoryFilter.size > 0) {
+      list = list.filter(j => quickCategoryFilter.has(j.categoryName));
+    }
 
     list.sort((a, b) => {
       const av = a[allSortKey] ?? "";
@@ -186,7 +222,7 @@ export function AgentPanel({ server, onShowSql }: Props) {
       return 0;
     });
     return list;
-  }, [jobs, jobFilter, quickEnabledFilter, quickOutcomeFilter, allSortKey, allSortAsc]);
+  }, [jobs, jobFilter, quickEnabledFilter, quickOutcomeFilter, quickCategoryFilter, allSortKey, allSortAsc]);
 
   function toggleAllSort(key: AllJobsSortKey) {
     if (allSortKey === key) setAllSortAsc(!allSortAsc);
@@ -213,12 +249,11 @@ export function AgentPanel({ server, onShowSql }: Props) {
     return "";
   }
 
+  const agentIcon = <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.622 10.395l-1.097-2.65L20 6l-2-2-1.735 1.483-2.707-1.113L12.935 2h-1.954l-.632 2.401-2.645 1.115L6 4 4 6l1.453 1.789-1.08 2.657L2 11v2l2.401.655L5.516 16.3 4 18l2 2 1.791-1.46 2.606 1.072L11 22h2l.604-2.387 2.651-1.098C16.697 18.831 18 20 18 20l2-2-1.484-1.742 1.098-2.652 2.386-.612V11l-2.378-.605Z"/></svg>;
+
   return (
     <div className="activity-panel">
-      <div className="activity-header">
-        <h3>🤖 Agent — {server}</h3>
-        <button onClick={refresh} disabled={loading}>{loading ? "..." : "⟳ Refresh"}</button>
-      </div>
+      <PageHeader icon={agentIcon} title={`Agent — ${server}`} server={server} pageColor="#4a4a2a" onRefresh={refresh} loading={loading} />
 
       {msg && <div className="success-msg" style={{ padding: "4px 0" }}>{msg}</div>}
 
@@ -317,25 +352,56 @@ export function AgentPanel({ server, onShowSql }: Props) {
 
             <span style={{ borderLeft: "1px solid var(--border)", height: 16, margin: "0 6px" }} />
 
-            {/* Outcome group */}
+            {/* Outcome group — multi-select */}
             <span style={{ fontSize: 11, color: "var(--fg-dim)", marginRight: 2 }}>Outcome:</span>
-            <button
-              className={`btn-sm${quickOutcomeFilter === "success" ? " chip-active" : ""}`}
-              style={{ background: quickOutcomeFilter === "success" ? "var(--success)" : undefined, color: quickOutcomeFilter === "success" ? "#000" : undefined }}
-              onClick={() => setQuickOutcomeFilter(quickOutcomeFilter === "success" ? null : "success")}
-            >success</button>
-            <button
-              className={`btn-sm${quickOutcomeFilter === "failed" ? " chip-active" : ""}`}
-              style={{ background: quickOutcomeFilter === "failed" ? "var(--danger)" : undefined }}
-              onClick={() => setQuickOutcomeFilter(quickOutcomeFilter === "failed" ? null : "failed")}
-            >failed</button>
-            <button
-              className={`btn-sm${quickOutcomeFilter === "stopped" ? " chip-active" : ""}`}
-              onClick={() => setQuickOutcomeFilter(quickOutcomeFilter === "stopped" ? null : "stopped")}
-            >stopped</button>
+            {(["success", "failed", "stopped", "unknown"] as const).map((val) => {
+              const active = quickOutcomeFilter.has(val);
+              const bg = active ? (val === "success" ? "var(--success)" : val === "failed" ? "var(--danger)" : undefined) : undefined;
+              const fg = active && val === "success" ? "#000" : undefined;
+              return (
+                <button
+                  key={val}
+                  className={`btn-sm${active ? " chip-active" : ""}`}
+                  style={{ background: bg, color: fg }}
+                  onClick={() => {
+                    setQuickOutcomeFilter(prev => {
+                      const next = new Set(prev);
+                      if (next.has(val)) next.delete(val); else next.add(val);
+                      return next;
+                    });
+                  }}
+                >{val}</button>
+              );
+            })}
 
-            {(jobFilter || quickEnabledFilter || quickOutcomeFilter) && (
-              <button className="btn-sm" onClick={() => { setJobFilter(""); setQuickEnabledFilter(null); setQuickOutcomeFilter(null); }}>✕ Clear</button>
+            <span style={{ borderLeft: "1px solid var(--border)", height: 16, margin: "0 6px" }} />
+
+            {/* Category group — multi-select */}
+            {allCategories.length > 0 && (
+              <>
+                <span style={{ fontSize: 11, color: "var(--fg-dim)", marginRight: 2 }}>Category:</span>
+                {allCategories.map((cat) => {
+                  const active = quickCategoryFilter.has(cat);
+                  return (
+                    <button
+                      key={cat}
+                      className={`btn-sm${active ? " chip-active" : ""}`}
+                      onClick={() => {
+                        setQuickCategoryFilter(prev => {
+                          const next = new Set(prev);
+                          if (next.has(cat)) next.delete(cat); else next.add(cat);
+                          return next;
+                        });
+                      }}
+                    >{cat}</button>
+                  );
+                })}
+                <span style={{ borderLeft: "1px solid var(--border)", height: 16, margin: "0 6px" }} />
+              </>
+            )}
+
+            {(jobFilter || quickEnabledFilter || quickOutcomeFilter.size > 0 || quickCategoryFilter.size > 0) && (
+              <button className="btn-sm" style={{ color: "var(--danger)" }} onClick={() => { setJobFilter(""); setQuickEnabledFilter(null); setQuickOutcomeFilter(new Set()); setQuickCategoryFilter(new Set()); }}>✕ Clear</button>
             )}
           </div>
         </div>
@@ -344,6 +410,7 @@ export function AgentPanel({ server, onShowSql }: Props) {
             <thead>
               <tr>
                 <th style={{ cursor: "pointer" }} onClick={() => toggleAllSort("jobName")}>Job Name{allSortIcon("jobName")}</th>
+                <th>Category</th>
                 <th style={{ cursor: "pointer" }} onClick={() => toggleAllSort("lastRunDate")}>Last Run{allSortIcon("lastRunDate")}</th>
                 <th style={{ cursor: "pointer" }} onClick={() => toggleAllSort("lastRunOutcome")}>Outcome{allSortIcon("lastRunOutcome")}</th>
                 <th style={{ cursor: "pointer" }} onClick={() => toggleAllSort("nextRunDate")}>Next Run{allSortIcon("nextRunDate")}</th>
@@ -363,17 +430,21 @@ export function AgentPanel({ server, onShowSql }: Props) {
                     expandedSteps={expandedSteps}
                     expandedSchedules={expandedSchedules}
                     expandedCmd={expandedCmd}
+                    stepsOpen={stepsOpen}
+                    schedulesOpen={schedulesOpen}
                     outcomeIcon={outcomeIcon}
                     outcomeColor={outcomeColor}
                     onToggleExpand={() => toggleExpandJob(j.jobId)}
                     onToggleCmd={(stepId) => setExpandedCmd(expandedCmd === stepId ? null : stepId)}
+                    onToggleSteps={() => setStepsOpen(!stepsOpen)}
+                    onToggleSchedules={() => setSchedulesOpen(!schedulesOpen)}
                     onStart={() => openStartAtStep(j)}
                     onToggleEnabled={(enable) => handleToggle(j, enable)}
                   />
                 );
               })}
               {filteredSortedJobs.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--fg-dim)" }}>No jobs found</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--fg-dim)" }}>No jobs found</td></tr>
               )}
             </tbody>
           </table>
@@ -421,7 +492,9 @@ export function AgentPanel({ server, onShowSql }: Props) {
 /* ---- Expanded Job Row ---- */
 function JobRow({
   job, rowStyle, isExpanded, expandedSteps, expandedSchedules, expandedCmd,
-  outcomeIcon, outcomeColor, onToggleExpand, onToggleCmd, onStart, onToggleEnabled,
+  stepsOpen, schedulesOpen,
+  outcomeIcon, outcomeColor, onToggleExpand, onToggleCmd,
+  onToggleSteps, onToggleSchedules, onStart, onToggleEnabled,
 }: {
   job: AgentJob;
   rowStyle: React.CSSProperties;
@@ -429,10 +502,14 @@ function JobRow({
   expandedSteps: AgentJobStep[];
   expandedSchedules: AgentJobSchedule[];
   expandedCmd: number | null;
+  stepsOpen: boolean;
+  schedulesOpen: boolean;
   outcomeIcon: (o: string, e: boolean) => string;
   outcomeColor: (o: string, e: boolean) => string;
   onToggleExpand: () => void;
   onToggleCmd: (stepId: number) => void;
+  onToggleSteps: () => void;
+  onToggleSchedules: () => void;
   onStart: () => void;
   onToggleEnabled: (enable: boolean) => void;
 }) {
@@ -448,6 +525,7 @@ function JobRow({
             {job.jobName}
           </span>
         </td>
+        <td style={{ fontSize: 11, color: "var(--fg-dim)" }}>{job.categoryName || ""}</td>
         <td>{job.lastRunDate ?? "—"}</td>
         <td style={{ color: outcomeColor(job.lastRunOutcome, job.enabled), opacity: job.enabled ? 1 : 0.4 }}>
           {job.lastRunOutcome}
@@ -479,23 +557,27 @@ function JobRow({
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={5} style={{ padding: 0, border: "none" }}>
+          <td colSpan={6} style={{ padding: 0, border: "none" }}>
             <div style={{ padding: "6px 16px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid var(--border)" }}>
               {/* Steps */}
               {expandedSteps.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Steps</div>
-                  {expandedSteps.map((s) => (
-                    <div key={s.stepId} style={{ marginBottom: 4, fontSize: 12 }}>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <span>{s.stepId} — {s.stepName} <span style={{ fontSize: 10, color: "var(--fg-dim)" }}>({s.subsystem})</span></span>
-                      </div>
-                      <div style={{ display: "flex", gap: 12, fontSize: 11, marginLeft: 16 }}>
-                        <span style={{ color: "#2e7d32" }}>{s.onSuccessAction}</span>
-                        <span style={{ color: "#c62828" }}>{s.onFailAction}</span>
+                  <div
+                    style={{ fontWeight: 600, fontSize: 12, marginBottom: 4, cursor: "pointer", userSelect: "none" }}
+                    onClick={onToggleSteps}
+                  >
+                    <span style={{ fontSize: 10, marginRight: 4 }}>{stepsOpen ? "▾" : "▸"}</span>
+                    Steps ({expandedSteps.length})
+                  </div>
+                  {stepsOpen && expandedSteps.map((s) => (
+                    <div key={s.stepId} style={{ marginBottom: 2, fontSize: 12 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <span style={{ color: "var(--fg-dim)", minWidth: 18, textAlign: "right" }}>{s.stepId}</span>
+                        <span>{s.stepName}</span>
+                        <span style={{ fontSize: 10, color: "var(--fg-dim)" }}>{s.subsystem}</span>
                         {s.command && (
                           <span
-                            style={{ color: "var(--accent-hover)", cursor: "pointer", textDecoration: "underline" }}
+                            style={{ color: "var(--accent-hover)", cursor: "pointer", textDecoration: "underline", fontSize: 11 }}
                             onClick={() => onToggleCmd(s.stepId)}
                           >
                             {expandedCmd === s.stepId ? "hide command" : "show command"}
@@ -503,7 +585,13 @@ function JobRow({
                         )}
                       </div>
                       {expandedCmd === s.stepId && s.command && (
-                        <pre className="detail-code" style={{ marginLeft: 16, marginTop: 4, fontSize: 11, maxHeight: 200 }}>{s.command}</pre>
+                        <div style={{ marginLeft: 24, marginTop: 4 }}>
+                          <StepCommand command={s.command} subsystem={s.subsystem} />
+                          <div style={{ display: "flex", gap: 12, fontSize: 11, marginTop: 2 }}>
+                            <span style={{ color: "#2e7d32" }}>{s.onSuccessAction}</span>
+                            <span style={{ color: "#c62828" }}>{s.onFailAction}</span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -512,8 +600,14 @@ function JobRow({
               {/* Schedules */}
               {expandedSchedules.length > 0 && (
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Schedules</div>
-                  {expandedSchedules.map((sch, i) => (
+                  <div
+                    style={{ fontWeight: 600, fontSize: 12, marginBottom: 4, cursor: "pointer", userSelect: "none" }}
+                    onClick={onToggleSchedules}
+                  >
+                    <span style={{ fontSize: 10, marginRight: 4 }}>{schedulesOpen ? "▾" : "▸"}</span>
+                    Schedules ({expandedSchedules.length})
+                  </div>
+                  {schedulesOpen && expandedSchedules.map((sch, i) => (
                     <div key={i} style={{ fontSize: 12, marginLeft: 8, marginBottom: 2 }}>
                       <span>{sch.scheduleName}</span>
                       <span style={{ color: "var(--fg-dim)", marginLeft: 8, fontSize: 11 }}>
@@ -531,5 +625,22 @@ function JobRow({
         </tr>
       )}
     </>
+  );
+}
+
+/* ---- Step command with hljs highlighting ---- */
+function StepCommand({ command, subsystem }: { command: string; subsystem: string }) {
+  const ref = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.removeAttribute("data-highlighted");
+      hljs.highlightElement(ref.current);
+    }
+  }, [command, subsystem]);
+  const lang = subsystemToLang(subsystem);
+  return (
+    <pre ref={ref} className={`detail-code language-${lang}`} style={{ fontSize: 11, maxHeight: 200 }}>
+      {command}
+    </pre>
   );
 }

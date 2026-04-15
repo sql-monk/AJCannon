@@ -49,6 +49,7 @@ import type {
   SqlModuleInfo,
   SqlModuleParameter,
   SqlModuleDependency,
+  ViewDetailInfo,
 } from "../../shared/types";
 
 /* ------------------------------------------------------------------ */
@@ -476,19 +477,38 @@ export async function getTableIndexes(
     .replace("{{tableName}}", escapeSqlString(tableName));
 
   const result = await queryDb<{
-    name: string | null;
+    name: string;
     index_id: number;
     type_desc: string;
+    is_unique: boolean;
+    sizeMB: number;
+    filter_definition: string | null;
+    key_columns: string | null;
+    include_columns: string | null;
   }>(server, dbName, sql);
 
-  return result.recordset
-    .filter((r) => r.name !== null)
-    .map((r) => ({
+  return result.recordset.map((r) => {
+    const typeLabel = (r.is_unique ? "UNIQUE " : "") + r.type_desc;
+    const children: TreeNode[] = [];
+    if (r.key_columns) {
+      r.key_columns.split(", ").forEach((col) => {
+        children.push({ id: `${r.name}:key:${col}`, label: col, type: "column" as const });
+      });
+    }
+    if (r.include_columns) {
+      children.push({ id: `${r.name}:include`, label: `INCLUDE (${r.include_columns})`, type: "column" as const });
+    }
+    if (r.filter_definition) {
+      children.push({ id: `${r.name}:filter`, label: `WHERE ${r.filter_definition}`, type: "column" as const });
+    }
+    return {
       id: `${server}:${dbName}:idx:${schemaName}.${tableName}.${r.name}`,
-      label: `${r.name} (${r.type_desc})`,
+      label: r.name,
       type: "index" as const,
-      meta: { indexId: r.index_id },
-    }));
+      children,
+      meta: { indexId: r.index_id, typeLabel, sizeMB: r.sizeMB },
+    };
+  });
 }
 
 export async function getTableColumns(
@@ -985,7 +1005,7 @@ export async function getTableDataSample(
   schemaName: string,
   tableName: string,
 ): Promise<Record<string, unknown>[]> {
-  const sql = `SELECT TOP 10 * FROM ${bracketName(schemaName)}.${bracketName(tableName)};`;
+  const sql = `SELECT TOP(10) * FROM ${bracketName(schemaName)}.${bracketName(tableName)};`;
   const result = await queryDb<Record<string, unknown>>(server, dbName, sql);
   return result.recordset;
 }
@@ -1044,6 +1064,126 @@ export async function getModuleDependencies(
       .replace(/\{\{schemaName\}\}/g, escapeSqlString(schemaName))
       .replace(/\{\{objectName\}\}/g, escapeSqlString(objectName));
     const result = await queryDb<SqlModuleDependency>(server, dbName, sql);
+    return result.recordset;
+  } catch {
+    return [];
+  }
+}
+
+export async function getModuleDdlHistory(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  objectName: string,
+): Promise<DdlHistoryEvent[]> {
+  try {
+    const sql = loadSql("database-ddl-history")
+      .replace("{{dbName}}", escapeSqlString(dbName));
+    const fullSql = sql.replace(
+      /ORDER BY/i,
+      `AND en.schema_name = N'${escapeSqlString(schemaName)}' AND en.object_name = N'${escapeSqlString(objectName)}'\nORDER BY`
+    );
+    const result = await queryServer<DdlHistoryEvent>(server, fullSql);
+    return result.recordset;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveModuleDefinition(
+  server: string,
+  dbName: string,
+  definition: string,
+): Promise<CmdResult> {
+  try {
+    await queryDb(server, dbName, definition);
+    return { success: true, message: "Module definition saved successfully." };
+  } catch (e: unknown) {
+    return { success: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/* ================================================================== */
+/*  View Panel                                                        */
+/* ================================================================== */
+
+export async function getViewDetail(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<ViewDetailInfo> {
+  const sql = loadSql("view-detail")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{viewName}}", escapeSqlString(viewName));
+  const result = await queryDb<ViewDetailInfo>(server, dbName, sql);
+  return result.recordset[0];
+}
+
+export async function getViewColumns(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<TableColumnDetail[]> {
+  const sql = loadSql("view-columns")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{viewName}}", escapeSqlString(viewName));
+  const result = await queryDb<TableColumnDetail>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getViewTriggers(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<TableTriggerInfo[]> {
+  const sql = loadSql("view-triggers")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{viewName}}", escapeSqlString(viewName));
+  const result = await queryDb<TableTriggerInfo>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getViewPermissions(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<TablePermissionInfo[]> {
+  const sql = loadSql("view-permissions")
+    .replace("{{schemaName}}", escapeSqlString(schemaName))
+    .replace("{{viewName}}", escapeSqlString(viewName));
+  const result = await queryDb<TablePermissionInfo>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getViewDataSample(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<Record<string, unknown>[]> {
+  const sql = `SELECT TOP(10) * FROM ${bracketName(schemaName)}.${bracketName(viewName)};`;
+  const result = await queryDb<Record<string, unknown>>(server, dbName, sql);
+  return result.recordset;
+}
+
+export async function getViewDdlHistory(
+  server: string,
+  dbName: string,
+  schemaName: string,
+  viewName: string,
+): Promise<DdlHistoryEvent[]> {
+  try {
+    const sql = loadSql("database-ddl-history")
+      .replace("{{dbName}}", escapeSqlString(dbName));
+    const fullSql = sql.replace(
+      /ORDER BY/i,
+      `AND en.schema_name = N'${escapeSqlString(schemaName)}' AND en.object_name = N'${escapeSqlString(viewName)}'\nORDER BY`
+    );
+    const result = await queryServer<DdlHistoryEvent>(server, fullSql);
     return result.recordset;
   } catch {
     return [];

@@ -4,6 +4,7 @@ jobId string,
 jobName string,
 enabled bit,
 description string,
+categoryName string,
 lastRunDate string,
 lastRunOutcome string,
 currentlyExecuting int,
@@ -14,6 +15,7 @@ SELECT
   j.name jobName,
   j.enabled,
   ISNULL(j.description, '') description,
+  ISNULL(c.name, '') categoryName,
   CONVERT(varchar(30), ja.last_executed_step_date, 120) lastRunDate,
   CASE jh.run_status
     WHEN 0 THEN 'Failed'
@@ -34,6 +36,7 @@ SELECT
     END,
   120) nextRunDate
 FROM msdb.dbo.sysjobs j (NOLOCK)
+  LEFT JOIN msdb.dbo.syscategories c (NOLOCK) ON j.category_id = c.category_id
   LEFT JOIN msdb.dbo.sysjobactivity ja (NOLOCK) ON j.job_id = ja.job_id
     AND ja.session_id = (
       SELECT TOP 1 session_id

@@ -1,15 +1,15 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import hljs from "highlight.js/lib/core";
 import sqlLang from "highlight.js/lib/languages/sql";
 import { bridge } from "../bridge";
 import { CollapsiblePanel, CollapsiblePanelRef } from "./CollapsiblePanel";
 import { PageHeader } from "./PageHeader";
 import type {
-  TableDetailInfo,
+  ViewDetailInfo,
   TableColumnDetail,
   TableTriggerInfo,
   TablePermissionInfo,
-  TreeNode,
+  DdlHistoryEvent,
 } from "../../shared/types";
 
 hljs.registerLanguage("sql", sqlLang);
@@ -22,16 +22,16 @@ interface Props {
   onShowSql?: (prefix: string) => void;
 }
 
-export function TablePanel({ server, database, schema, objectName, onShowSql }: Props) {
+export function ViewPanel({ server, database, schema, objectName, onShowSql }: Props) {
   /* ---- Info ---- */
-  const [info, setInfo] = useState<TableDetailInfo | null>(null);
+  const [info, setInfo] = useState<ViewDetailInfo | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [infoError, setInfoError] = useState("");
   const infoRef = useRef<CollapsiblePanelRef>(null);
 
   const loadInfo = useCallback(async () => {
     setInfoLoading(true); setInfoError("");
-    try { setInfo(await bridge.getTableDetail(server, database, schema, objectName)); }
+    try { setInfo(await bridge.getViewDetail(server, database, schema, objectName)); }
     catch (e: unknown) { setInfoError(e instanceof Error ? e.message : String(e)); }
     finally { setInfoLoading(false); }
   }, [server, database, schema, objectName]);
@@ -50,7 +50,7 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
 
   const loadSample = useCallback(async () => {
     setSampleLoading(true); setSampleError("");
-    try { setSample(await bridge.getTableDataSample(server, database, schema, objectName)); }
+    try { setSample(await bridge.getViewDataSample(server, database, schema, objectName)); }
     catch (e: unknown) { setSampleError(e instanceof Error ? e.message : String(e)); }
     finally { setSampleLoading(false); }
   }, [server, database, schema, objectName]);
@@ -63,23 +63,29 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
 
   const loadColumns = useCallback(async () => {
     setColsLoading(true); setColsError("");
-    try { setColumns(await bridge.getTableColumnsDetail(server, database, schema, objectName)); }
+    try { setColumns(await bridge.getViewColumns(server, database, schema, objectName)); }
     catch (e: unknown) { setColsError(e instanceof Error ? e.message : String(e)); }
     finally { setColsLoading(false); }
   }, [server, database, schema, objectName]);
 
-  /* ---- Indexes ---- */
-  const [indexes, setIndexes] = useState<TreeNode[]>([]);
-  const [idxLoading, setIdxLoading] = useState(false);
-  const [idxError, setIdxError] = useState("");
-  const idxRef = useRef<CollapsiblePanelRef>(null);
+  /* ---- Definition ---- */
+  const [definition, setDefinition] = useState("");
+  const [defLoading, setDefLoading] = useState(false);
+  const [defError, setDefError] = useState("");
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const defRef = useRef<CollapsiblePanelRef>(null);
 
-  const loadIndexes = useCallback(async () => {
-    setIdxLoading(true); setIdxError("");
-    try { setIndexes(await bridge.getTableIndexes(server, database, schema, objectName)); }
-    catch (e: unknown) { setIdxError(e instanceof Error ? e.message : String(e)); }
-    finally { setIdxLoading(false); }
+  const loadDefinition = useCallback(async () => {
+    setDefLoading(true); setDefError("");
+    try { setDefinition(await bridge.getModuleDefinition(server, database, schema, objectName)); }
+    catch (e: unknown) { setDefError(e instanceof Error ? e.message : String(e)); }
+    finally { setDefLoading(false); }
   }, [server, database, schema, objectName]);
+
+  const highlightedDef = useMemo(() => {
+    if (!definition) return "";
+    return hljs.highlight(definition, { language: "sql" }).value;
+  }, [definition]);
 
   /* ---- Triggers ---- */
   const [triggers, setTriggers] = useState<TableTriggerInfo[]>([]);
@@ -89,7 +95,7 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
 
   const loadTriggers = useCallback(async () => {
     setTrigLoading(true); setTrigError("");
-    try { setTriggers(await bridge.getTableTriggers(server, database, schema, objectName)); }
+    try { setTriggers(await bridge.getViewTriggers(server, database, schema, objectName)); }
     catch (e: unknown) { setTrigError(e instanceof Error ? e.message : String(e)); }
     finally { setTrigLoading(false); }
   }, [server, database, schema, objectName]);
@@ -102,19 +108,61 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
 
   const loadPerms = useCallback(async () => {
     setPermLoading(true); setPermError("");
-    try { setPerms(await bridge.getTablePermissions(server, database, schema, objectName)); }
+    try { setPerms(await bridge.getViewPermissions(server, database, schema, objectName)); }
     catch (e: unknown) { setPermError(e instanceof Error ? e.message : String(e)); }
     finally { setPermLoading(false); }
   }, [server, database, schema, objectName]);
+
+  /* ---- DDL History ---- */
+  const [ddlHistory, setDdlHistory] = useState<DdlHistoryEvent[]>([]);
+  const [ddlLoading, setDdlLoading] = useState(false);
+  const [ddlError, setDdlError] = useState("");
+  const [expandedDdl, setExpandedDdl] = useState<Set<number>>(new Set());
+  const ddlRef = useRef<CollapsiblePanelRef>(null);
+
+  const loadDdlHistory = useCallback(async () => {
+    setDdlLoading(true); setDdlError("");
+    try { setDdlHistory(await bridge.getViewDdlHistory(server, database, schema, objectName)); }
+    catch (e: unknown) { setDdlError(e instanceof Error ? e.message : String(e)); }
+    finally { setDdlLoading(false); }
+  }, [server, database, schema, objectName]);
+
+  function toggleDdlExpand(i: number) {
+    setExpandedDdl(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
 
   /* ---- Refresh all ---- */
   function refreshAll() {
     infoRef.current?.refresh();
     sampleRef.current?.refresh();
     colsRef.current?.refresh();
-    idxRef.current?.refresh();
+    defRef.current?.refresh();
     trigRef.current?.refresh();
     permRef.current?.refresh();
+    ddlRef.current?.refresh();
+  }
+
+  function copyDefinition() {
+    if (!definition) return;
+    navigator.clipboard.writeText(definition);
+  }
+
+  async function saveDefinition() {
+    if (!definition) return;
+    setSaveMsg(null);
+    const alterDef = definition.replace(/^\s*CREATE\s+(VIEW)/i, "ALTER $1");
+    const res = await bridge.saveModuleDefinition(server, database, alterDef);
+    setSaveMsg({ ok: res.success, text: res.message });
+  }
+
+  async function editInEditor() {
+    if (!definition) return;
+    const tmpPath = `${objectName}.sql`;
+    await bridge.openInEditor(tmpPath);
   }
 
   /* ---- Sample column keys ---- */
@@ -126,20 +174,20 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
   return (
     <div className="activity-panel" style={{ overflow: "auto", height: "100%" }}>
       <PageHeader
-        icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>}
+        icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>}
         title={`${schema}.${objectName}`}
         server={server}
         breadcrumb={[database, `${schema}.${objectName}`]}
-        pageColor="#2a3a4a"
+        pageColor="#2a4a3a"
         onRefresh={refreshAll}
       />
 
       {/* Info */}
       <CollapsiblePanel
         ref={infoRef}
-        storageKey={`table:info:${server}:${database}:${schema}.${objectName}`}
-        title="Table Info"
-        sqlPrefix="table-detail"
+        storageKey={`view:info:${server}:${database}:${schema}.${objectName}`}
+        title="View Info"
+        sqlPrefix="view-detail"
         onShowSql={onShowSql}
         loadData={loadInfo}
         loading={infoLoading}
@@ -148,12 +196,11 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
         {info ? (
           <div className="detail-grid">
             <div className="detail-row"><span className="detail-label">Rows</span><span>{info.rowsCount?.toLocaleString()}</span></div>
-            <div className="detail-row"><span className="detail-label">Total Space</span><span>{info.totalSpaceMB} MB</span></div>
-            <div className="detail-row"><span className="detail-label">Used Space</span><span>{info.usedSpaceMB} MB</span></div>
             <div className="detail-row"><span className="detail-label">Created</span><span>{info.createdDate}</span></div>
             <div className="detail-row"><span className="detail-label">Modified</span><span>{info.modifiedDate}</span></div>
-            <div className="detail-row"><span className="detail-label">Has Identity</span><span>{info.hasIdentity ? "Yes" : "No"}</span></div>
-            <div className="detail-row"><span className="detail-label">Lock Escalation</span><span>{info.lockEscalation}</span></div>
+            <div className="detail-row"><span className="detail-label">Updatable</span><span>{info.isUpdatable ? "Yes" : "No"}</span></div>
+            <div className="detail-row"><span className="detail-label">Schema Bound</span><span>{info.isSchemaBound ? "Yes" : "No"}</span></div>
+            {info.checkOption && <div className="detail-row"><span className="detail-label">Check Option</span><span>{info.checkOption}</span></div>}
           </div>
         ) : (
           <div className="loading">Loading...</div>
@@ -163,9 +210,9 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
       {/* Data Sample */}
       <CollapsiblePanel
         ref={sampleRef}
-        storageKey={`table:sample:${server}:${database}:${schema}.${objectName}`}
+        storageKey={`view:sample:${server}:${database}:${schema}.${objectName}`}
         title={`Data Sample (${sample.length} rows)`}
-        sqlPrefix="table-data"
+        sqlPrefix="view-data"
         onShowSql={() => setShowSampleSql((s) => !s)}
         loadData={loadSample}
         loading={sampleLoading}
@@ -203,9 +250,9 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
       {/* Columns */}
       <CollapsiblePanel
         ref={colsRef}
-        storageKey={`table:cols:${server}:${database}:${schema}.${objectName}`}
+        storageKey={`view:cols:${server}:${database}:${schema}.${objectName}`}
         title={`Columns (${columns.length})`}
-        sqlPrefix="table-columns-detail"
+        sqlPrefix="view-columns"
         onShowSql={onShowSql}
         loadData={loadColumns}
         loading={colsLoading}
@@ -222,8 +269,6 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
                   <span className="param-name">{c.name}</span>
                   <span className="param-type">({typeStr})</span>
                   <span style={{ color: c.isNullable ? "var(--fg-dim)" : "var(--fg)" }}>{c.isNullable ? "null" : "not null"}</span>
-                  {c.isIdentity && <span style={{ color: "var(--accent-hover)", fontSize: 11 }}>identity({c.identitySeed},{c.identityIncrement})</span>}
-                  {c.defaultValue && <span style={{ color: "var(--fg-dim)", fontSize: 11 }}>default: {c.defaultValue}</span>}
                   {c.isComputed && <span style={{ color: "var(--fg-dim)", fontSize: 11 }}>computed: {c.computedDefinition}</span>}
                 </div>
               );
@@ -232,37 +277,50 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
         )}
       </CollapsiblePanel>
 
-      {/* Indexes */}
+      {/* Definition */}
       <CollapsiblePanel
-        ref={idxRef}
-        storageKey={`table:idx:${server}:${database}:${schema}.${objectName}`}
-        title={`Indexes (${indexes.length})`}
-        sqlPrefix="table-indexes"
+        ref={defRef}
+        storageKey={`view:def:${server}:${database}:${schema}.${objectName}`}
+        title="Definition"
+        sqlPrefix="module-definition"
         onShowSql={onShowSql}
-        loadData={loadIndexes}
-        loading={idxLoading}
-        error={idxError}
+        loadData={loadDefinition}
+        loading={defLoading}
+        error={defError}
       >
-        {indexes.length === 0 ? (
-          <div className="loading">No indexes.</div>
-        ) : (
-          <div style={{ fontSize: 12 }}>
-            {indexes.map((idx) => {
-              const meta = idx.meta as Record<string, unknown> | undefined;
-              const typeLabel = meta?.typeLabel ? String(meta.typeLabel) : "";
-              const sizeMB = meta?.sizeMB != null ? Number(meta.sizeMB) : 0;
-              return <IndexTreeItem key={idx.id} idx={idx} typeLabel={typeLabel} sizeMB={sizeMB} />;
-            })}
+        {definition ? (
+          <div style={{ position: "relative" }}>
+            <div className="def-toolbar">
+              <button className="btn-sm btn-icon" onClick={copyDefinition} title="Copy">
+                <svg viewBox="0 0 16 16" width="14" height="14"><rect x="5" y="1" width="9" height="11" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/><rect x="2" y="4" width="9" height="11" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/></svg>
+              </button>
+              <button className="btn-sm btn-icon" onClick={saveDefinition} title="Save (ALTER)">
+                <svg viewBox="0 0 16 16" width="14" height="14"><path d="M2 2h9l3 3v9H2z" fill="none" stroke="currentColor" strokeWidth="1.2"/><rect x="4" y="2" width="6" height="4" fill="none" stroke="currentColor" strokeWidth="0.8"/><rect x="4" y="10" width="8" height="4" fill="none" stroke="currentColor" strokeWidth="0.8"/></svg>
+              </button>
+              <button className="btn-sm btn-icon" onClick={editInEditor} title="Edit in editor">
+                <svg viewBox="0 0 16 16" width="14" height="14"><path d="M11.5 1.5l3 3-9 9H2.5v-3z" fill="none" stroke="currentColor" strokeWidth="1.2"/></svg>
+              </button>
+            </div>
+            {saveMsg && (
+              <div className={saveMsg.ok ? "success-msg" : "error-msg"} style={{ marginBottom: 4 }}>{saveMsg.text}</div>
+            )}
+            <pre
+              className="detail-code hljs"
+              style={{ maxHeight: 600, overflow: "auto" }}
+              dangerouslySetInnerHTML={{ __html: highlightedDef }}
+            />
           </div>
+        ) : (
+          <div className="loading">No definition available.</div>
         )}
       </CollapsiblePanel>
 
       {/* Triggers */}
       <CollapsiblePanel
         ref={trigRef}
-        storageKey={`table:trig:${server}:${database}:${schema}.${objectName}`}
+        storageKey={`view:trig:${server}:${database}:${schema}.${objectName}`}
         title={`Triggers (${triggers.length})`}
-        sqlPrefix="table-triggers"
+        sqlPrefix="view-triggers"
         onShowSql={onShowSql}
         loadData={loadTriggers}
         loading={trigLoading}
@@ -293,9 +351,9 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
       {/* Permissions */}
       <CollapsiblePanel
         ref={permRef}
-        storageKey={`table:perm:${server}:${database}:${schema}.${objectName}`}
+        storageKey={`view:perm:${server}:${database}:${schema}.${objectName}`}
         title={`Permissions (${perms.length})`}
-        sqlPrefix="table-permissions"
+        sqlPrefix="view-permissions"
         onShowSql={onShowSql}
         loadData={loadPerms}
         loading={permLoading}
@@ -321,35 +379,79 @@ export function TablePanel({ server, database, schema, objectName, onShowSql }: 
           </table>
         )}
       </CollapsiblePanel>
+
+      {/* DDL History */}
+      <CollapsiblePanel
+        ref={ddlRef}
+        storageKey={`view:ddl:${server}:${database}:${schema}.${objectName}`}
+        title={`DDL History (${ddlHistory.length})`}
+        sqlPrefix="database-ddl-history"
+        onShowSql={onShowSql}
+        loadData={loadDdlHistory}
+        loading={ddlLoading}
+        error={ddlError}
+      >
+        {ddlHistory.length === 0 ? (
+          <div className="loading">No DDL events found.</div>
+        ) : (
+          <div className="activity-grid-wrap" style={{ maxHeight: 400 }}>
+            <table className="result-grid">
+              <thead>
+                <tr>
+                  <th style={{ width: 30 }}></th>
+                  <th>Event</th><th>Time</th><th>Login</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ddlHistory.map((e, i) => {
+                  const isExp = expandedDdl.has(i);
+                  return (
+                    <DdlRow key={i} event={e} index={i} isExpanded={isExp} onToggle={() => toggleDdlExpand(i)} />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CollapsiblePanel>
     </div>
   );
 }
 
-/* --- Index tree item with expand/collapse --- */
-function IndexTreeItem({ idx, typeLabel, sizeMB }: { idx: TreeNode; typeLabel: string; sizeMB: number }) {
-  const [open, setOpen] = useState(false);
-  const hasChildren = idx.children && idx.children.length > 0;
+/* DDL History Row with expandable SQL */
+function DdlRow({ event, index, isExpanded, onToggle }: {
+  event: DdlHistoryEvent;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const codeRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (isExpanded && codeRef.current && event.tsql_command) {
+      codeRef.current.textContent = event.tsql_command;
+      hljs.highlightElement(codeRef.current);
+    }
+  }, [isExpanded, event.tsql_command]);
+
   return (
-    <div style={{ marginBottom: 2 }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {hasChildren ? (
-          <span style={{ cursor: "pointer", fontSize: 10, width: 12 }} onClick={() => setOpen(!open)}>
-            {open ? "▾" : "▸"}
-          </span>
-        ) : <span style={{ width: 12 }} />}
-        <span style={{ color: "var(--fg-dim)", fontSize: 11 }}>{typeLabel}</span>
-        <strong>{idx.label}</strong>
-        {sizeMB > 0 && <span style={{ color: "var(--fg-dim)", fontSize: 11 }}>{sizeMB.toFixed(2)} MB</span>}
-      </div>
-      {open && hasChildren && (
-        <div style={{ paddingLeft: 20 }}>
-          {idx.children!.map((child) => (
-            <div key={child.id} style={{ fontSize: 11, color: "var(--fg-dim)", padding: "1px 0" }}>
-              {child.label}
+    <>
+      <tr onClick={onToggle} style={{ cursor: "pointer" }}>
+        <td style={{ textAlign: "center" }}>{isExpanded ? "▼" : "▶"}</td>
+        <td>{event.event_type}</td>
+        <td>{event.post_time ? new Date(event.post_time).toLocaleString() : ""}</td>
+        <td>{event.login_name}</td>
+      </tr>
+      {isExpanded && event.tsql_command && (
+        <tr>
+          <td colSpan={4}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+              <button className="btn-sm" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(event.tsql_command); }}>Copy</button>
             </div>
-          ))}
-        </div>
+            <pre className="detail-code"><code ref={codeRef} className="language-sql">{event.tsql_command}</code></pre>
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }

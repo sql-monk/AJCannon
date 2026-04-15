@@ -8,6 +8,7 @@ import { DatabasesPanel } from "./components/DatabasesPanel";
 import { DatabasePanel } from "./components/DatabasePanel";
 import { TablePanel } from "./components/TablePanel";
 import { SqlModulePanel } from "./components/SqlModulePanel";
+import { ViewPanel } from "./components/ViewPanel";
 import { bridge } from "./bridge";
 import type { AppConfig, SqlQueryFile } from "./bridge";
 import type { TreeContext } from "../shared/types";
@@ -233,14 +234,14 @@ export function App() {
     }
   }
 
-  function handleRemoveServer() {
-    const server = ctx?.server;
-    if (!server) return;
-    bridge.disconnect(server).catch(() => {});
-    setServers((prev) => prev.filter((s) => s !== server));
-    setCtx(null);
-    setShowDashboard(true);
-  }
+  // function handleRemoveServer() {
+  //   const server = ctx?.server;
+  //   if (!server) return;
+  //   bridge.disconnect(server).catch(() => {});
+  //   setServers((prev) => prev.filter((s) => s !== server));
+  //   setCtx(null);
+  //   setShowDashboard(true);
+  // }
 
   function handleServerRemoved(server: string) {
     setServers((prev) => prev.filter((s) => s !== server));
@@ -335,6 +336,11 @@ export function App() {
           return <TablePanel server={ctx.server} database={ctx.database} schema={ctx.schema} objectName={ctx.objectName} onShowSql={openQueriesModal} />;
         }
         return <div className="tab-content"><div className="loading">Select a table.</div></div>;
+      case "view":
+        if (ctx.database && ctx.schema && ctx.objectName) {
+          return <ViewPanel server={ctx.server} database={ctx.database} schema={ctx.schema} objectName={ctx.objectName} onShowSql={openQueriesModal} />;
+        }
+        return <div className="tab-content"><div className="loading">Select a view.</div></div>;
       case "sqlmodule":
         if (ctx.database && ctx.schema && ctx.objectName) {
           return <SqlModulePanel server={ctx.server} database={ctx.database} schema={ctx.schema} objectName={ctx.objectName} objectType={ctx.objectType ?? "procedure"} onShowSql={openQueriesModal} />;
@@ -413,6 +419,24 @@ export function App() {
     }
   }
 
+  function getServerColor(server: string): string {
+    try { return localStorage.getItem(`AJCannon:server-color:${server}`) ?? "#0e639c"; } catch { return "#0e639c"; }
+  }
+
+  function tabIcon(view: string): React.ReactNode {
+    const s = 14;
+    switch (view) {
+      case "activity": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><path d="M21 12a1 1 0 0 0-1-1h-3.4l-2.24-6a1 1 0 0 0-1.87 0L9.38 13H7.5l-1.14-3a1 1 0 0 0-1.86 0L3 13H2a1 1 0 0 0 0 2h1.5a1 1 0 0 0 .93-.64L5.5 11.72l1.07 2.84A1 1 0 0 0 7.5 15h2.5a1 1 0 0 0 .93-.64L13.49 6l1.57 4.64A1 1 0 0 0 16 11.5h4a1 1 0 0 0 1-1Z"/></svg>;
+      case "agent": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.622 10.395l-1.097-2.65L20 6l-2-2-1.735 1.483-2.707-1.113L12.935 2h-1.954l-.632 2.401-2.645 1.115L6 4 4 6l1.453 1.789-1.08 2.657L2 11v2l2.401.655L5.516 16.3 4 18l2 2 1.791-1.46 2.606 1.072L11 22h2l.604-2.387 2.651-1.098C16.697 18.831 18 20 18 20l2-2-1.484-1.742 1.098-2.652 2.386-.612V11l-2.378-.605Z"/></svg>;
+      case "server": case "overview": case "configuration": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 128 128"><path fill="#ccc" d="M33 8h62v112H33z"/><path fill="#666" d="M70 40H58v-8h12zm0 16H58v-8h12zm0-32H58V16h12z"/></svg>;
+      case "databases": return <svg viewBox="0 0 16 16" width={s} height={s}><ellipse cx="8" cy="4" rx="6" ry="2.5" fill="#e5c07b"/><path d="M2 4v8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V4" fill="#e5c07b" opacity="0.75"/></svg>;
+      case "table": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>;
+      case "sqlmodule": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>;
+      case "view": return <svg xmlns="http://www.w3.org/2000/svg" width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>;
+      default: return null;
+    }
+  }
+
   return (
     <div className="app-layout">
       {/* ---- Toast ---- */}
@@ -474,16 +498,21 @@ export function App() {
             >
               Dashboard
             </div>
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                className={`content-tab${activeTabId === tab.id && !showDashboard ? " active" : ""}`}
-                onClick={() => { setActiveTabId(tab.id); setCtx(tab.ctx); setShowDashboard(false); }}
-              >
-                <span className="content-tab-title">{tab.title}</span>
-                <button className="content-tab-close" onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}>✕</button>
-              </div>
-            ))}
+            {tabs.map((tab) => {
+              const srvColor = getServerColor(tab.ctx.server);
+              return (
+                <div
+                  key={tab.id}
+                  className={`content-tab${activeTabId === tab.id && !showDashboard ? " active" : ""}`}
+                  style={{ borderTop: `3px solid ${srvColor}` }}
+                  onClick={() => { setActiveTabId(tab.id); setCtx(tab.ctx); setShowDashboard(false); }}
+                >
+                  {tabIcon(tab.ctx.view) && <span style={{ display: "flex", alignItems: "center", marginRight: 4 }}>{tabIcon(tab.ctx.view)}</span>}
+                  <span className="content-tab-title">{tab.title}</span>
+                  <button className="content-tab-close" onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}>✕</button>
+                </div>
+              );
+            })}
           </div>
         )}
         <div className="content-body" key={activeTabId && !showDashboard ? `${activeTabId}::${tabs.find(t => t.id === activeTabId)?.rev ?? 0}` : "__dashboard__"}>

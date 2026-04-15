@@ -104,6 +104,20 @@ contextBridge.exposeInMainWorld("sqlBridge", {
   getTableDataSample:    (server: string, db: string, schema: string, table: string) =>
                            ipcRenderer.invoke(IpcChannels.GET_TABLE_DATA_SAMPLE, server, db, schema, table),
 
+  // View Panel
+  getViewDetail:         (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_DETAIL, server, db, schema, viewName),
+  getViewColumns:        (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_COLUMNS, server, db, schema, viewName),
+  getViewTriggers:       (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_TRIGGERS, server, db, schema, viewName),
+  getViewPermissions:    (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_PERMISSIONS, server, db, schema, viewName),
+  getViewDataSample:     (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_DATA_SAMPLE, server, db, schema, viewName),
+  getViewDdlHistory:     (server: string, db: string, schema: string, viewName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_VIEW_DDL_HISTORY, server, db, schema, viewName),
+
   // SQL Module Panel
   getModuleInfo:         (server: string, db: string, schema: string, objectName: string) =>
                            ipcRenderer.invoke(IpcChannels.GET_MODULE_INFO, server, db, schema, objectName),
@@ -113,4 +127,8 @@ contextBridge.exposeInMainWorld("sqlBridge", {
                            ipcRenderer.invoke(IpcChannels.GET_MODULE_PARAMETERS, server, db, schema, objectName),
   getModuleDependencies: (server: string, db: string, schema: string, objectName: string) =>
                            ipcRenderer.invoke(IpcChannels.GET_MODULE_DEPENDENCIES, server, db, schema, objectName),
+  getModuleDdlHistory:   (server: string, db: string, schema: string, objectName: string) =>
+                           ipcRenderer.invoke(IpcChannels.GET_MODULE_DDL_HISTORY, server, db, schema, objectName),
+  saveModuleDefinition:  (server: string, db: string, definition: string) =>
+                           ipcRenderer.invoke(IpcChannels.SAVE_MODULE_DEFINITION, server, db, definition),
 });

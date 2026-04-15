@@ -8,7 +8,7 @@ export interface ConnectionConfig {
 }
 
 // ---- Tree context (selected node determines right-panel content) ----
-export type TreeView = "overview" | "activity" | "agent" | "databases" | "security" | "server" | "configuration" | "alwayson" | "extendedevents" | "db-querystats" | "db-backups" | "db-storage" | "db-security" | "db-tables" | "db-views" | "db-procedures" | "db-scalar-functions" | "db-tvf" | "db-user-types" | "db-qs-regressed" | "db-qs-resource" | "db-qs-forced" | "db-filegroups" | "db-partitioning" | "table" | "sqlmodule";
+export type TreeView = "overview" | "activity" | "agent" | "databases" | "security" | "server" | "configuration" | "alwayson" | "extendedevents" | "db-querystats" | "db-backups" | "db-storage" | "db-security" | "db-tables" | "db-views" | "db-procedures" | "db-scalar-functions" | "db-tvf" | "db-user-types" | "db-qs-regressed" | "db-qs-resource" | "db-qs-forced" | "db-filegroups" | "db-partitioning" | "table" | "view" | "sqlmodule";
 
 export interface TreeContext {
   server: string;
@@ -109,6 +109,7 @@ export interface DatabaseSpaceOnVolume {
   databaseId: number;
   volumeMountPoint: string;
   totalSizeMB: number;
+  fileCount: number;
 }
 
 export interface FileSpaceInfo {
@@ -201,6 +202,7 @@ export interface AgentJob {
   jobName: string;
   enabled: boolean;
   description: string;
+  categoryName: string;
   lastRunDate: string | null;
   lastRunOutcome: string;
   currentlyExecuting: boolean;
@@ -407,6 +409,19 @@ export interface TablePermissionInfo {
   stateDesc: string;
 }
 
+// ---- View Panel ----
+export interface ViewDetailInfo {
+  schemaName: string;
+  viewName: string;
+  rowsCount: number;
+  createdDate: string;
+  modifiedDate: string;
+  isUpdatable: boolean;
+  checkOption: string;
+  isSchemaBound: boolean;
+  withCheckOption: boolean;
+}
+
 // ---- SQL Module Panel ----
 export interface SqlModuleInfo {
   schemaName: string;
@@ -499,9 +514,18 @@ export const IpcChannels = {
   GET_TABLE_TRIGGERS:       "sql:get-table-triggers",
   GET_TABLE_PERMISSIONS:    "sql:get-table-permissions",
   GET_TABLE_DATA_SAMPLE:    "sql:get-table-data-sample",
+  // View Panel
+  GET_VIEW_DETAIL:          "sql:get-view-detail",
+  GET_VIEW_COLUMNS:         "sql:get-view-columns",
+  GET_VIEW_TRIGGERS:        "sql:get-view-triggers",
+  GET_VIEW_PERMISSIONS:     "sql:get-view-permissions",
+  GET_VIEW_DATA_SAMPLE:     "sql:get-view-data-sample",
+  GET_VIEW_DDL_HISTORY:     "sql:get-view-ddl-history",
   // SQL Module Panel
   GET_MODULE_INFO:          "sql:get-module-info",
   GET_MODULE_DEFINITION:    "sql:get-module-definition",
   GET_MODULE_PARAMETERS:    "sql:get-module-parameters",
   GET_MODULE_DEPENDENCIES:  "sql:get-module-dependencies",
+  GET_MODULE_DDL_HISTORY:   "sql:get-module-ddl-history",
+  SAVE_MODULE_DEFINITION:   "sql:save-module-definition",
 } as const;

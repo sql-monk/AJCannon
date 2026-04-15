@@ -3,6 +3,7 @@ import hljs from "highlight.js/lib/core";
 import sql from "highlight.js/lib/languages/sql";
 import xml from "highlight.js/lib/languages/xml";
 import "highlight.js/styles/vs2015.css";
+import { PageHeader } from "./PageHeader";
 import { bridge } from "../bridge";
 import type {
   SessionInfo,
@@ -334,11 +335,13 @@ export function ActivityPanel({ server, onError, onShowSql }: Props) {
     );
   }
 
+  const activityIcon = <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12a1 1 0 0 0-1-1h-3.4l-2.24-6a1 1 0 0 0-1.87 0L9.38 13H7.5l-1.14-3a1 1 0 0 0-1.86 0L3 13H2a1 1 0 0 0 0 2h1.5a1 1 0 0 0 .93-.64L5.5 11.72l1.07 2.84A1 1 0 0 0 7.5 15h2.5a1 1 0 0 0 .93-.64L13.49 6l1.57 4.64A1 1 0 0 0 16 11.5h4a1 1 0 0 0 1-1Z"/></svg>;
+
   return (
     <div className="activity-panel">
       {/* Header */}
-      <div className="activity-header">
-        <h3>Activity — {server}</h3>
+      <PageHeader icon={activityIcon} title={`Activity — ${server}`} server={server} pageColor="#2a4a2a" />
+      <div className="activity-header" style={{ borderBottom: 'none', marginTop: -4 }}>
         <div className="activity-controls">
           <span style={{ fontSize: 11, color: "var(--fg-dim)" }}>Refresh:</span>
           <select value={interval} onChange={(e) => setInterval_(Number(e.target.value))}>

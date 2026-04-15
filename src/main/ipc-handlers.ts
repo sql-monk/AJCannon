@@ -246,6 +246,31 @@ export function registerIpcHandlers(): void {
     async (_e, server: string, db: string, schema: string, table: string) =>
       Q.getTableDataSample(server, db, schema, table));
 
+  // ---- View Panel ----
+  ipcMain.handle(IpcChannels.GET_VIEW_DETAIL,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewDetail(server, db, schema, viewName));
+
+  ipcMain.handle(IpcChannels.GET_VIEW_COLUMNS,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewColumns(server, db, schema, viewName));
+
+  ipcMain.handle(IpcChannels.GET_VIEW_TRIGGERS,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewTriggers(server, db, schema, viewName));
+
+  ipcMain.handle(IpcChannels.GET_VIEW_PERMISSIONS,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewPermissions(server, db, schema, viewName));
+
+  ipcMain.handle(IpcChannels.GET_VIEW_DATA_SAMPLE,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewDataSample(server, db, schema, viewName));
+
+  ipcMain.handle(IpcChannels.GET_VIEW_DDL_HISTORY,
+    async (_e, server: string, db: string, schema: string, viewName: string) =>
+      Q.getViewDdlHistory(server, db, schema, viewName));
+
   // ---- SQL Module Panel ----
   ipcMain.handle(IpcChannels.GET_MODULE_INFO,
     async (_e, server: string, db: string, schema: string, objectName: string) =>
@@ -262,4 +287,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.GET_MODULE_DEPENDENCIES,
     async (_e, server: string, db: string, schema: string, objectName: string) =>
       Q.getModuleDependencies(server, db, schema, objectName));
+
+  ipcMain.handle(IpcChannels.GET_MODULE_DDL_HISTORY,
+    async (_e, server: string, db: string, schema: string, objectName: string) =>
+      Q.getModuleDdlHistory(server, db, schema, objectName));
+
+  ipcMain.handle(IpcChannels.SAVE_MODULE_DEFINITION,
+    async (_e, server: string, db: string, definition: string) =>
+      Q.saveModuleDefinition(server, db, definition));
 }
